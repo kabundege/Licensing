@@ -47,4 +47,17 @@ The platform separates **public edge** traffic from **internal** services and us
 - `documents`: linked to applications; supports document versioning (`version`, `is_current`, `uploader_id`).
 - `audit_logs`: immutable transition history (`actor_id`, `action`, `state_before`, `state_after`, `timestamp`).
 - `users`: identity store for all actors; linked to roles.
-- `roles`: role definitions and permissions (Applicant/Reviewer/Approver).
+- `roles`: role definitions (Applicant/Reviewer/Approver).
+- `Permissions`: Permission Definition (CRUD) to designated resources
+
+## Roles & Granular Permissions
+
+To satisfy the requirement for distinct permission boundaries, the system uses Role-Based Access Control (RBAC) linked to specific resource permissions. 
+
+| Role | Resource | Permission / Action | Business Justification |
+| --- | --- | --- | --- |
+| Applicant | `applications` | create, read_own, update_draft | Applicants must manage their own lifecycle but are restricted from seeing competitor data. |
+| Applicant | `documents` | upload, read_own | Required for providing licensing evidence. |
+| Reviewer | `applications` | read_all, assign_self, request_info | Reviewers act as technical analysts to verify submission completeness. |
+| Reviewer | `audit_logs` | read_all | Necessary for verifying the history of a specific application. |
+| Approver | `applications` | read_all, final_decision | Executive role responsible for the legal granting of licenses. |
