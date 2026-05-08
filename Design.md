@@ -4,7 +4,7 @@
 
 This system manages a controlled multi-step licensing review process between three actors: **Applicant**, **Reviewer**, and **Approver**. It enforces clear role-based transitions, keeps a complete audit trail of every state change, and stores versioned application documents.
 
-## Workflow (State Machine)
+## State Machine
 
 ![State Machine Thumbnail](./State_Machine.png)
 
