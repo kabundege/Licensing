@@ -1,15 +1,45 @@
 import { Router } from 'express';
-import { requireJwt } from '../../middleware/auth.middleware';
+import {
+  restrictTo,
+  requireJwt,
+} from '../../middleware/auth.middleware';
+
+import { AppPermission } from './app-permissions';
+
+import {
+  createReviewer,
+  promoteUser,
+} from './admin.controller';
+
+import {
+  signup,
+  login,
+  me,
+} from './auth.controller';
 
 const router = Router();
 
 router.get(`/health`, (_req, res) =>
-  res.json({ module: `auth`, status: `stub` })
+  res.json({ module: `auth`, status: `ok` })
 );
 
-/** Demonstrates JWT wiring — returns 403 without a valid Bearer token. */
-router.get(`/me`, requireJwt, ({ auth }, res) =>
-  res.json({ module: `auth`, subject: auth?.sub ?? null })
+router.post(`/signup`, signup);
+router.post(`/login`, login);
+
+router.patch(
+  `/admin/promote/:userId`,
+  requireJwt,
+  restrictTo(AppPermission.ManageUsers),
+  promoteUser,
 );
+
+router.post(
+  `/admin/create-reviewer`,
+  requireJwt,
+  restrictTo(AppPermission.ManageUsers),
+  createReviewer,
+);
+
+router.get(`/me`, requireJwt, me);
 
 export { router as authRouter };
