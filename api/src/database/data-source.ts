@@ -1,5 +1,10 @@
 import { DataSource } from 'typeorm';
 import { env } from '../config/env';
+import {
+  Permission,
+  Role,
+  User,
+} from '../modules/auth/entities';
 
 export const AppDataSource = new DataSource({
   type: `postgres`,
@@ -13,7 +18,7 @@ export const AppDataSource = new DataSource({
   },
   synchronize: env.nodeEnv !== `production`,
   logging: env.nodeEnv === `development`,
-  entities: [],
+  entities: [User, Role, Permission],
   migrations: [],
   subscribers: [],
 });

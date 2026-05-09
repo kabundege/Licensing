@@ -1,15 +1,58 @@
 import { Router } from 'express';
-import { requireJwt } from '../../middleware/auth.middleware';
+import {
+  restrictTo,
+  requireJwt,
+} from '../../middleware/auth.middleware';
+import {
+  createReviewerBodySchema,
+  loginBodySchema,
+  promoteParamsSchema,
+  signupBodySchema,
+  validateBody,
+  validateParams,
+} from '../../validation';
+import { AppPermission } from './app-permissions';
+
+import {
+  createReviewer,
+  promoteUser,
+} from './admin.controller';
+
+import {
+  signup,
+  login,
+  me,
+} from './auth.controller';
 
 const router = Router();
 
 router.get(`/health`, (_req, res) =>
-  res.json({ module: `auth`, status: `stub` })
+  res.json({ module: `auth`, status: `ok` })
 );
 
-/** Demonstrates JWT wiring — returns 403 without a valid Bearer token. */
-router.get(`/me`, requireJwt, ({ auth }, res) =>
-  res.json({ module: `auth`, subject: auth?.sub ?? null })
+router.post(`/signup`, validateBody(signupBodySchema), signup);
+router.post(
+  `/login`,
+  validateBody(loginBodySchema, `unauthorized`),
+  login,
 );
+
+router.patch(
+  `/admin/promote/:userId`,
+  validateParams(promoteParamsSchema),
+  requireJwt,
+  restrictTo(AppPermission.ManageUsers),
+  promoteUser,
+);
+
+router.post(
+  `/admin/create-reviewer`,
+  validateBody(createReviewerBodySchema),
+  requireJwt,
+  restrictTo(AppPermission.ManageUsers),
+  createReviewer,
+);
+
+router.get(`/me`, requireJwt, me);
 
 export { router as authRouter };
