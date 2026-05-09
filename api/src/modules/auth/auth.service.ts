@@ -8,44 +8,16 @@ import { AppDataSource } from '../../database/data-source';
 import { runInTransaction } from '../../database/transaction';
 import { AppError } from '../../shared/errors/AppError';
 import { AuditService } from '../audit/audit.service';
+import type {
+  CreateReviewerBodyDto,
+  LoginBodyDto,
+  SignupBodyDto,
+} from '../../validation/schemas';
 import { Role, RoleName, User } from './entities';
 import { permissionTokensFromPairs } from './utils/permission-tokens';
+import { getRoleRepository, getUserRepository, roleRepo, userRepo } from '../../repository';
 
 const BCRYPT_COST = 12;
-const EMAIL_MAX = 320;
-
-export const normalizeEmail = (email: unknown): string | null => {
-  if (typeof email !== `string`) return null;
-  const trimmed = email.trim().toLowerCase();
-  if (!trimmed || trimmed.length > EMAIL_MAX) return null;
-  return trimmed;
-};
-
-const assertSignupBody = (
-  email: unknown,
-  password: unknown,
-  name: unknown
-): { email: string; password: string; name: string } => {
-  const normalized = normalizeEmail(email);
-  if (!normalized || typeof password !== `string` || password.length < 8) {
-    throw AppError.badRequest(`Invalid email or password`);
-  }
-  if (typeof name !== `string` || name.trim().length < 2) {
-    throw AppError.badRequest(`Invalid name`);
-  }
-  return { email: normalized, password, name: name.trim() };
-};
-
-const loginBodyGuard = (
-  email: unknown,
-  password: unknown
-): { email: string; password: string } => {
-  const normalized = normalizeEmail(email);
-  if (!normalized || typeof password !== `string`) {
-    throw AppError.unauthorized(`Invalid credentials`);
-  }
-  return { email: normalized, password };
-};
 
 export const loadUserWithAccess = async (
   userRepo: Repository<User>,
@@ -57,19 +29,8 @@ export const loadUserWithAccess = async (
   });
 };
 
-export const signupUser = async (body: unknown): Promise<User> => {
-  const parsed =
-    typeof body === `object` && body !== null
-      ? (body as Record<string, unknown>)
-      : {};
-  const { email, password, name } = assertSignupBody(
-    parsed.email,
-    parsed.password,
-    parsed.name
-  );
-
-  const userRepo = AppDataSource.getRepository(User);
-  const roleRepo = AppDataSource.getRepository(Role);
+export const signupUser = async (body: SignupBodyDto): Promise<User> => {
+  const { email, password, name } = body;
 
   const existing = await userRepo.findOne({ where: { email } });
   if (existing) {
@@ -103,14 +64,10 @@ export const signupUser = async (body: unknown): Promise<User> => {
   return hydrated;
 };
 
-export const loginUser = async (body: unknown): Promise<string> => {
-  const parsed =
-    typeof body === `object` && body !== null
-      ? (body as Record<string, unknown>)
-      : {};
-  const { email, password } = loginBodyGuard(parsed.email, parsed.password);
+export const loginUser = async (body: LoginBodyDto): Promise<string> => {
+  const { email, password } = body;
 
-  const userRepo = AppDataSource.getRepository(User);
+  const userRepo = getUserRepository();
   const user = await userRepo.findOne({
     where: { email },
     relations: { role: { permissions: true } },
@@ -130,19 +87,10 @@ export const loginUser = async (body: unknown): Promise<string> => {
   return jwt.sign(payload, secret, { expiresIn: `12h`, algorithm: `HS256` });
 };
 
-export const createReviewerAccount = async (body: unknown): Promise<User> => {
-  const parsed =
-    typeof body === `object` && body !== null
-      ? (body as Record<string, unknown>)
-      : {};
-  const { email, password, name } = assertSignupBody(
-    parsed.email,
-    parsed.password,
-    parsed.name
-  );
-
-  const userRepo = AppDataSource.getRepository(User);
-  const roleRepo = AppDataSource.getRepository(Role);
+export const createReviewerAccount = async (
+  body: CreateReviewerBodyDto
+): Promise<User> => {
+  const { email, password, name } = body;
 
   const existing = await userRepo.findOne({ where: { email } });
   if (existing) {
@@ -178,8 +126,8 @@ export const promoteUserToReviewer = async (params: {
   performedByUserId: string;
 }): Promise<User> =>
   runInTransaction(AppDataSource, async (manager) => {
-    const userRepo = manager.getRepository(User);
-    const roleRepo = manager.getRepository(Role);
+    const userRepo = getUserRepository(manager);
+    const roleRepo = getRoleRepository(manager);
 
     const reviewerRole = await roleRepo.findOne({
       where: { name: RoleName.REVIEWER },

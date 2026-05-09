@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
 
-import { AppError } from '../../shared/errors/AppError';
 import type { LoadedAuthUser } from './auth.types';
 import { asyncHandler } from '../../shared/async-handler';
+import { AppError } from '../../shared/errors/AppError';
 import { createReviewerAccount, promoteUserToReviewer } from './auth.service';
 
 const reviewerPublicShape = (user: {
@@ -19,10 +19,7 @@ const reviewerPublicShape = (user: {
 
 export const promoteUser = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { userId } = req.params as { userId?: string };
-    if (!userId) {
-      throw AppError.badRequest(`userId parameter is required`);
-    }
+    const { userId } = req.params as { userId: string };
     const caller = req.user as LoadedAuthUser | undefined;
     if (!caller) {
       throw AppError.unauthorized(`Invalid session`);
