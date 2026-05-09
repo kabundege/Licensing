@@ -1,0 +1,6 @@
+export enum RoleName {
+  APPLICANT = `APPLICANT`,
+  REVIEWER = `REVIEWER`,
+  APPROVER = `APPROVER`,
+  ADMIN = `ADMIN`,
+}

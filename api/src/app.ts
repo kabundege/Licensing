@@ -2,7 +2,10 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import path from 'path';
+import swaggerUi from 'swagger-ui-express';
+
 import { env } from './config/env';
+import { openApiDocument } from './docs/openapi';
 import { errorHandler } from './middleware/error-handler.middleware';
 import { applicationsRouter } from './modules/applications/applications.routes';
 import { auditRouter } from './modules/audit/audit.routes';
@@ -14,7 +17,19 @@ export const createApp = (): express.Application => {
   const app = express();
 
   app.disable(`x-powered-by`);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: [`'self'`],
+          styleSrc: [`'self'`, `'unsafe-inline'`],
+          scriptSrc: [`'self'`, `'unsafe-inline'`],
+          imgSrc: [`'self'`, `data:`],
+          connectSrc: [`'self'`],
+        },
+      },
+    })
+  );
   app.use(
     cors({
       origin:
@@ -35,6 +50,19 @@ export const createApp = (): express.Application => {
   app.get(`/health`, (_req, res) => {
     res.json({ ok: true, service: `bnr-licensing-api` });
   });
+
+  app.get(`/api/docs/openapi.json`, (_req, res) => {
+    res.json(openApiDocument);
+  });
+
+  app.use(
+    `/api/docs`,
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, {
+      customSiteTitle: `BNR Licensing API`,
+      customCss: `.swagger-ui .topbar { display: none }`,
+    })
+  );
 
   app.use(`/api/auth`, authRouter);
   app.use(`/api/audit`, auditRouter);
