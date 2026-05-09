@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bnr
+      POSTGRES_USER: bnr
+      POSTGRES_PASSWORD: bnr
+    ports:
+      - "5432:5432"
+    volumes:
+      - bnr_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bnr -d bnr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bnr_pgdata:
