@@ -15,7 +15,7 @@ import type {
 } from '../../validation/schemas';
 import { Role, RoleName, User } from './entities';
 import { permissionTokensFromPairs } from './utils/permission-tokens';
-import { getRoleRepository, getUserRepository, roleRepo, userRepo } from '../../repository';
+import { roleRepo, userRepo } from '../../repository';
 
 const BCRYPT_COST = 12;
 
@@ -67,7 +67,6 @@ export const signupUser = async (body: SignupBodyDto): Promise<User> => {
 export const loginUser = async (body: LoginBodyDto): Promise<string> => {
   const { email, password } = body;
 
-  const userRepo = getUserRepository();
   const user = await userRepo.findOne({
     where: { email },
     relations: { role: { permissions: true } },
@@ -126,10 +125,10 @@ export const promoteUserToReviewer = async (params: {
   performedByUserId: string;
 }): Promise<User> =>
   runInTransaction(AppDataSource, async (manager) => {
-    const userRepo = getUserRepository(manager);
-    const roleRepo = getRoleRepository(manager);
+    const userRepository = manager.getRepository(User);
+    const roleRepository = manager.getRepository(Role);
 
-    const reviewerRole = await roleRepo.findOne({
+    const reviewerRole = await roleRepository.findOne({
       where: { name: RoleName.REVIEWER },
       relations: { permissions: true },
     });
@@ -141,7 +140,7 @@ export const promoteUserToReviewer = async (params: {
       );
     }
 
-    const record = await userRepo.findOne({
+    const record = await userRepository.findOne({
       where: { id: params.targetUserId },
       relations: { role: { permissions: true } },
     });
@@ -150,7 +149,7 @@ export const promoteUserToReviewer = async (params: {
     }
 
     record.roleId = reviewerRole.id;
-    await userRepo.save(record);
+    await userRepository.save(record);
 
     const auditService = new AuditService(manager);
     await auditService.logPromotion({
@@ -159,7 +158,7 @@ export const promoteUserToReviewer = async (params: {
       newRole: RoleName.REVIEWER,
     });
 
-    const hydrated = await userRepo.findOne({
+    const hydrated = await userRepository.findOne({
       where: { id: record.id },
       relations: { role: { permissions: true } },
     });

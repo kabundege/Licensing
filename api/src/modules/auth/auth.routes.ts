@@ -11,7 +11,6 @@ import {
   validateBody,
   validateParams,
 } from '../../validation';
-
 import { AppPermission } from './app-permissions';
 
 import {

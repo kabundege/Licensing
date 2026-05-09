@@ -1,6 +1,6 @@
 import type { Permission } from '../entities';
 
-/** Tokens used in JWT payloads and for `restrictTo(...)`. */
+
 export const permissionTokensFromPairs = (
   permissions: Permission[] | undefined
 ): string[] => {
