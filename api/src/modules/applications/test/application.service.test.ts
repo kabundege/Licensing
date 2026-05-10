@@ -305,6 +305,8 @@ describe(`application.service`, () => {
         actor_id: actorWithApprove.id,
         from_state: ApplicationStatus.FINAL_REVIEW,
         to_state: ApplicationStatus.APPROVED,
+        event_action: null,
+        document_id: null,
       });
       expect(mocks.runInTransaction).toHaveBeenCalledTimes(1);
     });
