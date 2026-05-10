@@ -6,7 +6,7 @@ export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
     title: `BNR Licensing API`,
-    description: `Bank licensing and compliance portal API. Authenticated routes use a Bearer JWT from \`POST /api/auth/login\`. Admin routes require the \`manage_users\` permission (Admin role).`,
+    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. Admin routes require **manage_users**. Approving applications (when implemented) requires **application:approve** (\`application\` / \`approve\`) unless the actor is the application's assigned reviewer.`,
     version: `0.1.0`,
   },
   servers: [
@@ -29,7 +29,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: `http`,
         scheme: `bearer`,
         bearerFormat: `JWT`,
-        description: `JWT from \`/api/auth/login\` (\`Authorization: Bearer <token>\`)`,
+        description: `JWT from \`/api/auth/login\`, with \`roles: string[]\` and \`permissions: string[]\` (\`Authorization: Bearer <token>\`)`,
       },
     },
     schemas: {
@@ -57,9 +57,13 @@ export const openApiDocument: OpenAPIV3.Document = {
           id: { type: `string`, format: `uuid` },
           email: { type: `string`, format: `email` },
           name: { type: `string` },
-          role: {
-            type: `string`,
-            enum: [`APPLICANT`, `REVIEWER`, `APPROVER`, `ADMIN`],
+          roles: {
+            type: `array`,
+            items: {
+              type: `string`,
+              enum: [`APPLICANT`, `REVIEWER`, `APPROVER`, `ADMIN`],
+            },
+            description: `Distinct role names sorted alphabetically.`,
           },
         },
       },
@@ -68,15 +72,44 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           id: { type: `string`, format: `uuid` },
           email: { type: `string` },
-          role: {
-            type: `string`,
-            enum: [`APPLICANT`, `REVIEWER`, `APPROVER`, `ADMIN`],
+          roles: {
+            type: `array`,
+            items: {
+              type: `string`,
+              enum: [`APPLICANT`, `REVIEWER`, `APPROVER`, `ADMIN`],
+            },
+            description: `Distinct role names sorted alphabetically.`,
           },
           permissions: {
             type: `array`,
             items: { type: `string` },
-            description: `Permission tokens derived from role (e.g. manage_users, users:manage_users)`,
+            description: `Permission tokens merged from all roles (e.g. manage_users, users:manage_users, approve, application:approve)`,
           },
+        },
+      },
+      PromoteUserRequest: {
+        type: `object`,
+        required: [`role`],
+        properties: {
+          role: {
+            type: `string`,
+            enum: [`REVIEWER`, `APPROVER`],
+            description: `Adds this role to the user if not already present (does not replace other roles).`,
+          },
+        },
+      },
+      AdminUsersListResponse: {
+        type: `object`,
+        required: [`success`, `users`, `page`, `limit`, `total`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          users: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/PublicUser` },
+          },
+          page: { type: `integer`, minimum: 1 },
+          limit: { type: `integer`, minimum: 1 },
+          total: { type: `integer`, minimum: 0 },
         },
       },
       SignupRequest: {
@@ -156,7 +189,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: [`Auth`],
         summary: `Register as applicant`,
-        description: `Creates a user with the **APPLICANT** role from the database (role is never taken from the request).`,
+        description: `Creates a user with the **APPLICANT** role from the database (roles are never taken from the request; response lists assigned role names).`,
         requestBody: {
           required: true,
           content: {
@@ -244,7 +277,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
-            description: `Profile from database (permissions reflect current role)`,
+            description: `Profile from database (permissions merged from all roles assigned to the user)`,
             content: {
               'application/json': {
                 schema: {
@@ -271,8 +304,8 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/api/auth/admin/promote/{userId}': {
       patch: {
         tags: [`Auth — Admin`],
-        summary: `Promote user to reviewer`,
-        description: `Transactional role update plus audit stub. Requires **manage_users**.`,
+        summary: `Add reviewer or approver role to user`,
+        description: `Adds **REVIEWER** or **APPROVER** to the user's roles if missing (idempotent). Transactional promotion plus audit stub when a role was added. Requires **manage_users**.`,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -282,6 +315,14 @@ export const openApiDocument: OpenAPIV3.Document = {
             schema: { type: `string`, format: `uuid` },
           },
         ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: `#/components/schemas/PromoteUserRequest` },
+            },
+          },
+        },
         responses: {
           '200': {
             description: `User promoted`,
@@ -297,6 +338,14 @@ export const openApiDocument: OpenAPIV3.Document = {
               },
             },
           },
+          '400': {
+            description: `Invalid patch body`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
           '403': {
             description: `Missing token, invalid token, or insufficient permissions`,
             content: {
@@ -307,6 +356,64 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
           '404': {
             description: `User not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/auth/admin/users': {
+      get: {
+        tags: [`Auth — Admin`],
+        summary: `List users`,
+        description: `Paged list of accounts (no passwords). Requires **manage_users**.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `page`,
+            in: `query`,
+            required: false,
+            schema: {
+              type: `integer`,
+              minimum: 1,
+              maximum: 10_000,
+              default: 1,
+            },
+          },
+          {
+            name: `limit`,
+            in: `query`,
+            required: false,
+            schema: {
+              type: `integer`,
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Users page`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/AdminUsersListResponse` },
+              },
+            },
+          },
+          '400': {
+            description: `Invalid query`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing token, invalid token, or insufficient permissions`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },

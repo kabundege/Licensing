@@ -3,10 +3,10 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
-  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+
 import { User } from './user.entity';
 import { RoleName } from './role-name';
 import { Permission } from './permission.entity';
@@ -31,6 +31,6 @@ export class Role {
   })
   permissions!: Permission[];
 
-  @OneToMany(() => User, (user) => user.role)
+  @ManyToMany(() => User, (user) => user.roles)
   users!: User[];
 }

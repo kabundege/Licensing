@@ -4,17 +4,21 @@ import {
   requireJwt,
 } from '../../middleware/auth.middleware';
 import {
+  adminUsersQuerySchema,
   createReviewerBodySchema,
   loginBodySchema,
+  promoteBodySchema,
   promoteParamsSchema,
   signupBodySchema,
   validateBody,
   validateParams,
+  validateQuery,
 } from '../../validation';
 import { AppPermission } from './app-permissions';
 
 import {
   createReviewer,
+  listUsers,
   promoteUser,
 } from './admin.controller';
 
@@ -37,9 +41,18 @@ router.post(
   login,
 );
 
+router.get(
+  `/admin/users`,
+  validateQuery(adminUsersQuerySchema),
+  requireJwt,
+  restrictTo(AppPermission.ManageUsers),
+  listUsers,
+);
+
 router.patch(
   `/admin/promote/:userId`,
   validateParams(promoteParamsSchema),
+  validateBody(promoteBodySchema),
   requireJwt,
   restrictTo(AppPermission.ManageUsers),
   promoteUser,

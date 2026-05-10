@@ -14,18 +14,21 @@ import type {
   SignupBodyDto,
 } from '../../validation/schemas';
 import { Role, RoleName, User } from './entities';
-import { permissionTokensFromPairs } from './utils/permission-tokens';
+import { permissionTokensFromRoles } from './utils/permission-tokens';
 import { roleRepo, userRepo } from '../../repository';
 
 const BCRYPT_COST = 12;
 
+const sortedJwtRoles = (roles: Role[] | undefined): RoleName[] =>
+  [...(roles ?? [])].map((r) => r.name).sort((a, b) => String(a).localeCompare(String(b)));
+
 export const loadUserWithAccess = async (
-  userRepo: Repository<User>,
+  repo: Repository<User>,
   userId: string
 ): Promise<User | null> => {
-  return userRepo.findOne({
+  return repo.findOne({
     where: { id: userId },
-    relations: { role: { permissions: true } },
+    relations: { roles: { permissions: true } },
   });
 };
 
@@ -39,6 +42,7 @@ export const signupUser = async (body: SignupBodyDto): Promise<User> => {
 
   const applicantRole = await roleRepo.findOne({
     where: { name: RoleName.APPLICANT },
+    relations: { permissions: true },
   });
   if (!applicantRole) {
     throw new AppError(
@@ -53,7 +57,7 @@ export const signupUser = async (body: SignupBodyDto): Promise<User> => {
     email,
     password: passwordHash,
     name,
-    roleId: applicantRole.id,
+    roles: [applicantRole],
   });
 
   const saved = await userRepo.save(row);
@@ -69,7 +73,7 @@ export const loginUser = async (body: LoginBodyDto): Promise<string> => {
 
   const user = await userRepo.findOne({
     where: { email },
-    relations: { role: { permissions: true } },
+    relations: { roles: { permissions: true } },
   });
 
   if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -79,8 +83,8 @@ export const loginUser = async (body: LoginBodyDto): Promise<string> => {
   const payload = {
     sub: user.id,
     email: user.email,
-    role: user.role.name,
-    permissions: permissionTokensFromPairs(user.role.permissions ?? []),
+    roles: sortedJwtRoles(user.roles),
+    permissions: permissionTokensFromRoles(user.roles ?? []),
   };
   const secret = getJwtSigningSecret();
   return jwt.sign(payload, secret, { expiresIn: `12h`, algorithm: `HS256` });
@@ -113,26 +117,27 @@ export const createReviewerAccount = async (
     email,
     password: passwordHash,
     name,
-    roleId: reviewerRole.id,
+    roles: [reviewerRole],
   });
   await userRepo.save(user);
   const hydrated = await loadUserWithAccess(userRepo, user.id);
   return hydrated ?? user;
 };
 
-export const promoteUserToReviewer = async (params: {
+export const addPromotionRoleToUser = async (params: {
   targetUserId: string;
   performedByUserId: string;
+  roleName: RoleName.REVIEWER | RoleName.APPROVER;
 }): Promise<User> =>
   runInTransaction(AppDataSource, async (manager) => {
     const userRepository = manager.getRepository(User);
     const roleRepository = manager.getRepository(Role);
 
-    const reviewerRole = await roleRepository.findOne({
-      where: { name: RoleName.REVIEWER },
+    const targetRoleEntity = await roleRepository.findOne({
+      where: { name: params.roleName },
       relations: { permissions: true },
     });
-    if (!reviewerRole) {
+    if (!targetRoleEntity) {
       throw new AppError(
         `SETUP_REQUIRED`,
         `Default roles missing — run the database seed.`,
@@ -142,26 +147,44 @@ export const promoteUserToReviewer = async (params: {
 
     const record = await userRepository.findOne({
       where: { id: params.targetUserId },
-      relations: { role: { permissions: true } },
+      relations: { roles: { permissions: true } },
     });
     if (!record) {
       throw AppError.notFound(`User not found`);
     }
 
-    record.roleId = reviewerRole.id;
-    await userRepository.save(record);
+    const hasRole =
+      record.roles?.some((r) => r.id === targetRoleEntity.id) ?? false;
+    if (!hasRole) {
+      record.roles = [...(record.roles ?? []), targetRoleEntity];
+      await userRepository.save(record);
 
-    const auditService = new AuditService(manager);
-    await auditService.logPromotion({
-      promotedUserId: record.id,
-      performedByUserId: params.performedByUserId,
-      newRole: RoleName.REVIEWER,
-    });
+      const auditService = new AuditService(manager);
+      await auditService.logPromotion({
+        promotedUserId: record.id,
+        performedByUserId: params.performedByUserId,
+        addedRole: params.roleName,
+      });
+    }
 
     const hydrated = await userRepository.findOne({
       where: { id: record.id },
-      relations: { role: { permissions: true } },
+      relations: { roles: { permissions: true } },
     });
 
     return hydrated ?? record;
   });
+
+export const listUsersForAdmin = async (opts: {
+  page: number;
+  limit: number;
+}): Promise<{ users: User[]; total: number }> => {
+  const skip = (opts.page - 1) * opts.limit;
+  const [users, total] = await userRepo.findAndCount({
+    relations: { roles: true },
+    order: { email: `ASC` },
+    skip,
+    take: opts.limit,
+  });
+  return { users, total };
+};

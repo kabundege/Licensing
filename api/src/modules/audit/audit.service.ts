@@ -3,12 +3,9 @@ import type { EntityManager } from 'typeorm';
 export type PromotionAuditPayload = {
   promotedUserId: string;
   performedByUserId: string;
-  newRole: string;
+  addedRole: string;
 };
 
-/**
- * Audit trail stub — call sites pass an optional transactional `EntityManager` for future inserts.
- */
 export class AuditService {
   constructor(private readonly _manager?: EntityManager) {}
 

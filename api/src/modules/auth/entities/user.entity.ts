@@ -1,11 +1,12 @@
 import {
   Column,
   Entity,
-  JoinColumn,
-  ManyToOne,
+  JoinTable,
+  ManyToMany,
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+
 import { Role } from './role.entity';
 
 @Entity(`users`)
@@ -23,10 +24,11 @@ export class User {
   @Column({ type: `varchar`, length: 255 })
   name!: string;
 
-  @Column({ name: `role_id`, type: `uuid` })
-  roleId!: string;
-
-  @ManyToOne(() => Role, (role) => role.users, { nullable: false })
-  @JoinColumn({ name: `role_id` })
-  role!: Role;
+  @ManyToMany(() => Role, (role) => role.users)
+  @JoinTable({
+    name: `user_roles`,
+    joinColumn: { name: `user_id`, referencedColumnName: `id` },
+    inverseJoinColumn: { name: `role_id`, referencedColumnName: `id` },
+  })
+  roles!: Role[];
 }
