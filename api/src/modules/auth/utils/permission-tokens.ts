@@ -1,5 +1,14 @@
 import type { Permission } from '../entities';
 
+export const actorHasPermissionPair = (
+  tokens: string[],
+  resource: string,
+  action: string
+): boolean => {
+  const s = new Set(tokens);
+  return s.has(`${resource}:${action}`) || s.has(action);
+};
+
 export const permissionTokensFromPairs = (
   permissions: Permission[] | undefined
 ): string[] => {

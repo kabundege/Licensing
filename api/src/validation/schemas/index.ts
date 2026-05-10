@@ -1,3 +1,7 @@
+export type { ApplicationIdParamsDto } from './application-id-params.schema';
+export { applicationIdParamsSchema } from './application-id-params.schema';
+export type { ApplicationTransitionStatusBodyDto } from './application-transition-status-body.schema';
+export { applicationTransitionStatusBodySchema } from './application-transition-status-body.schema';
 export type { AdminUsersQueryDto } from './admin-users-query.schema';
 export { adminUsersQuerySchema } from './admin-users-query.schema';
 export type { CreateReviewerBodyDto } from './create-reviewer-body.schema';

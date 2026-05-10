@@ -1,12 +1,15 @@
 import type { OpenAPIV3 } from 'openapi-types';
 
 import { env } from '../config/env';
+import { ApplicationStatus } from '../modules/applications/entities';
+
+const applicationStatusEnum = Object.values(ApplicationStatus);
 
 export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
     title: `BNR Licensing API`,
-    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. Admin routes require **manage_users**. Approving applications (when implemented) requires **application:approve** (\`application\` / \`approve\`) unless the actor is the application's assigned reviewer.`,
+    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. **Application lifecycle**: \`POST /api/applications\` creates **DRAFT** apps for the authenticated user; **Applicants** list/read only their own rows (**reviewers**, **approvers**, **admins** see all). \`PATCH /api/applications/{id}/status\` advances state with optimistic locking (\`expectedVersion\`). Requests targeting **APPROVED** must also carry **application:approve**. Separation-of-duties blocks final approval/rejection when the actor is the assigned reviewer.`,
     version: `0.1.0`,
   },
   servers: [
@@ -19,7 +22,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: `Health`, description: `Liveness and module stubs` },
     { name: `Auth`, description: `Signup, login, and session` },
     { name: `Auth — Admin`, description: `User management (requires manage_users)` },
-    { name: `Applications`, description: `License applications (stub)` },
+    { name: `Applications`, description: `License applications — status transitions (RBAC + optimistic locking) and module health` },
     { name: `Audit`, description: `Audit trail (stub)` },
     { name: `Documents`, description: `Document upload (stub)` },
   ],
@@ -136,6 +139,121 @@ export const openApiDocument: OpenAPIV3.Document = {
           email: { type: `string`, format: `email` },
           password: { type: `string`, minLength: 8 },
           name: { type: `string`, minLength: 2 },
+        },
+      },
+      ApplicationStatus: {
+        type: `string`,
+        enum: applicationStatusEnum,
+        description: `Workflow state for a license application.`,
+      },
+      ApplicationRecord: {
+        type: `object`,
+        required: [
+          `id`,
+          `applicant_id`,
+          `status`,
+          `reviewer_id`,
+          `approver_id`,
+          `version`,
+        ],
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          applicant_id: {
+            type: `string`,
+            format: `uuid`,
+            description: `Owning applicant user id (set from JWT on create).`,
+          },
+          status: { $ref: `#/components/schemas/ApplicationStatus` },
+          reviewer_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+            description: `Set when a reviewer moves the application from SUBMITTED to UNDER_REVIEW.`,
+          },
+          approver_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+            description: `Set on APPROVED or REJECTED by the deciding actor.`,
+          },
+          version: {
+            type: `integer`,
+            minimum: 0,
+            description: `Incremented on each successful transition; client must send the prior value as expectedVersion.`,
+          },
+        },
+      },
+      AuditLogRecord: {
+        type: `object`,
+        required: [
+          `id`,
+          `application_id`,
+          `actor_id`,
+          `from_state`,
+          `to_state`,
+          `timestamp`,
+        ],
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          application_id: { type: `string`, format: `uuid` },
+          actor_id: { type: `string`, format: `uuid` },
+          from_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          to_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          timestamp: { type: `string`, format: `date-time` },
+        },
+      },
+      ApplicationDetailRecord: {
+        allOf: [
+          { $ref: `#/components/schemas/ApplicationRecord` },
+          {
+            type: `object`,
+            required: [`auditLogs`],
+            properties: {
+              auditLogs: {
+                type: `array`,
+                items: { $ref: `#/components/schemas/AuditLogRecord` },
+              },
+            },
+          },
+        ],
+      },
+      ApplicationsListResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationRecord` },
+          },
+        },
+      },
+      ApplicationDetailResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/ApplicationDetailRecord` },
+        },
+      },
+      ApplicationSingleResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/ApplicationRecord` },
+        },
+      },
+      TransitionApplicationStatusRequest: {
+        type: `object`,
+        required: [`targetStatus`, `expectedVersion`],
+        properties: {
+          targetStatus: { $ref: `#/components/schemas/ApplicationStatus` },
+          expectedVersion: {
+            type: `integer`,
+            minimum: 0,
+            description: `Must match the application's current version or the server responds with 409 CONFLICT.`,
+          },
         },
       },
     },
@@ -479,10 +597,168 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/api/applications': {
+      get: {
+        tags: [`Applications`],
+        summary: `List applications`,
+        description: `**Applicants** receive only applications where **applicant_id** matches the JWT subject. **Reviewer**, **Approver**, and **Admin** roles receive all applications.`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Applications visible to the caller`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationsListResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: [`Applications`],
+        summary: `Create application (DRAFT)`,
+        description: `Creates a new application owned by the authenticated user (**applicant_id** = JWT subject).`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '201': {
+            description: `Draft created`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationSingleResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/applications/{id}': {
+      get: {
+        tags: [`Applications`],
+        summary: `Get application and audit trail`,
+        description: `Returns application fields plus **auditLogs** ordered oldest-first. Subject to the same visibility rules as the list endpoint.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Application detail`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationDetailResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller cannot access this application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/applications/{id}/status': {
+      patch: {
+        tags: [`Applications`],
+        summary: `Transition application status`,
+        description: `Runs one validated workflow step (see Design state machine). Requires JWT and permission tokens for the requested transition. When **targetStatus** is **APPROVED**, the caller must also satisfy **application:approve** at the route layer. Uses optimistic locking via **expectedVersion**, separation-of-duties on APPROVED/REJECTED (assigned reviewer cannot be the actor), and appends an **audit_logs** row in the same database transaction.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: `#/components/schemas/TransitionApplicationStatusRequest` },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: `Status updated`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationSingleResponse` },
+              },
+            },
+          },
+          '400': {
+            description: `Invalid path, body, or disallowed transition for current status`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, insufficient permission for **APPROVED** target, insufficient permission token for this transition, or reviewer attempted final approval/rejection`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '409': {
+            description: `Version mismatch (concurrent update)`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/applications/health': {
       get: {
         tags: [`Applications`],
-        summary: `Applications module health (stub)`,
+        summary: `Applications module health`,
         responses: {
           '200': {
             description: `OK`,

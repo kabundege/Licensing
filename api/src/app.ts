@@ -7,7 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { openApiDocument } from './docs/openapi';
 import { errorHandler } from './middleware/error-handler.middleware';
-import { applicationsRouter } from './modules/applications/applications.routes';
+import { applicationRouter } from './modules/applications/application.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { authRouter } from './modules/auth/auth.routes';
 import { documentsRouter } from './modules/documents/documents.routes';
@@ -67,7 +67,7 @@ export const createApp = (): express.Application => {
   app.use(`/api/auth`, authRouter);
   app.use(`/api/audit`, auditRouter);
   app.use(`/api/documents`, documentsRouter);
-  app.use(`/api/applications`, applicationsRouter);
+  app.use(`/api/applications`, applicationRouter);
 
   app.use((_req, _res, next) => {
     next(AppError.notFound());
