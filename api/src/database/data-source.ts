@@ -6,6 +6,7 @@ import {
   User,
 } from '../modules/auth/entities';
 import { Application, AuditLog } from '../modules/applications/entities';
+import { Document } from '../modules/documents/entities/document.entity';
 
 export const AppDataSource = new DataSource({
   type: `postgres`,
@@ -19,7 +20,7 @@ export const AppDataSource = new DataSource({
   },
   synchronize: env.nodeEnv !== `production`,
   logging: env.nodeEnv === `development`,
-  entities: [User, Role, Permission, Application, AuditLog],
+  entities: [User, Role, Permission, Application, AuditLog, Document],
   migrations: [],
   subscribers: [],
 });
