@@ -35,6 +35,9 @@ export class AuditLog {
   @Column({ type: `uuid`, nullable: true })
   document_id!: string | null;
 
+  @Column({ type: `jsonb`, nullable: true })
+  metadata!: Record<string, unknown> | null;
+
   @CreateDateColumn({ type: `timestamptz` })
   timestamp!: Date;
 }

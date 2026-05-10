@@ -17,5 +17,6 @@ export const auditLogPublicShape = (log: AuditLog) => ({
   to_state: log.to_state,
   event_action: log.event_action,
   document_id: log.document_id,
+  metadata: log.metadata,
   timestamp: log.timestamp,
 });
