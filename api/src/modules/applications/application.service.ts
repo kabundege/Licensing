@@ -20,7 +20,7 @@ export const actorSeesAllApplications = (actor: LoadedAuthUser): boolean =>
       r === RoleName.ADMIN
   );
 
-const assertCanReadApplication = (actor: LoadedAuthUser, row: Application): void => {
+export const assertCanReadApplication = (actor: LoadedAuthUser, row: Application): void => {
   if (actorSeesAllApplications(actor)) {
     return;
   }

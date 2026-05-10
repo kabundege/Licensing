@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import type {
+  ApplicationDocumentsQueryDto,
   ApplicationIdParamsDto,
   ApplicationTransitionStatusBodyDto,
 } from '../../validation/schemas';
@@ -16,6 +17,8 @@ import {
   transitionStatus,
 } from './application.service';
 import type { ApplicationStatus } from './entities';
+import { documentPublicShape } from '../documents/document-response';
+import { listDocumentsForApplication } from '../documents/documents.service';
 
 export const listApplicationsHandler = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -41,6 +44,18 @@ export const getApplicationByIdHandler = asyncHandler(
         ...applicationPublicShape(application),
         auditLogs: auditLogs.map(auditLogPublicShape),
       },
+    });
+  }
+);
+
+export const listApplicationDocumentsHandler = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as unknown as ApplicationIdParamsDto;
+    const { includeHistory } = req.query as unknown as ApplicationDocumentsQueryDto;
+    const docs = await listDocumentsForApplication(id, req.user!, includeHistory);
+    res.json({
+      success: true,
+      data: docs.map(documentPublicShape),
     });
   }
 );
