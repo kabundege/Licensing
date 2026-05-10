@@ -13,11 +13,30 @@ export class AuditLog {
   @Column({ type: `uuid` })
   actor_id!: string;
 
-  @Column({ type: `enum`, enum: ApplicationStatus, enumName: `application_status_enum` })
-  from_state!: ApplicationStatus;
+  @Column({
+    type: `enum`,
+    enum: ApplicationStatus,
+    enumName: `application_status_enum`,
+    nullable: true,
+  })
+  from_state!: ApplicationStatus | null;
 
-  @Column({ type: `enum`, enum: ApplicationStatus, enumName: `application_status_enum` })
-  to_state!: ApplicationStatus;
+  @Column({
+    type: `enum`,
+    enum: ApplicationStatus,
+    enumName: `application_status_enum`,
+    nullable: true,
+  })
+  to_state!: ApplicationStatus | null;
+
+  @Column({ type: `varchar`, length: 64, nullable: true })
+  event_action!: string | null;
+
+  @Column({ type: `uuid`, nullable: true })
+  document_id!: string | null;
+
+  @Column({ type: `jsonb`, nullable: true })
+  metadata!: Record<string, unknown> | null;
 
   @CreateDateColumn({ type: `timestamptz` })
   timestamp!: Date;

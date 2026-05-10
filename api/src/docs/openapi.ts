@@ -24,7 +24,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: `Auth — Admin`, description: `User management (requires manage_users)` },
     { name: `Applications`, description: `License applications — status transitions (RBAC + optimistic locking) and module health` },
     { name: `Audit`, description: `Audit trail (stub)` },
-    { name: `Documents`, description: `Document upload (stub)` },
+    { name: `Documents`, description: `Application document upload and secure download` },
   ],
   components: {
     securitySchemes: {
@@ -185,20 +185,38 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       AuditLogRecord: {
         type: `object`,
-        required: [
-          `id`,
-          `application_id`,
-          `actor_id`,
-          `from_state`,
-          `to_state`,
-          `timestamp`,
-        ],
+        required: [`id`, `application_id`, `actor_id`, `timestamp`],
         properties: {
           id: { type: `string`, format: `uuid` },
           application_id: { type: `string`, format: `uuid` },
           actor_id: { type: `string`, format: `uuid` },
-          from_state: { $ref: `#/components/schemas/ApplicationStatus` },
-          to_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          from_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+            description: `Present for status transitions; null for non-transition events (e.g. document uploads).`,
+          },
+          to_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+            description: `Present for status transitions; null for non-transition events.`,
+          },
+          event_action: {
+            type: `string`,
+            nullable: true,
+            example: `DOCUMENT_UPLOADED`,
+            description: `Set for domain events stored in the same audit stream as transitions.`,
+          },
+          document_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+          },
+          metadata: {
+            type: `object`,
+            nullable: true,
+            additionalProperties: true,
+            description: `JSON payload for domain audit events (e.g. document version metadata).`,
+          },
           timestamp: { type: `string`, format: `date-time` },
         },
       },
@@ -253,6 +271,39 @@ export const openApiDocument: OpenAPIV3.Document = {
             type: `integer`,
             minimum: 0,
             description: `Must match the application's current version or the server responds with 409 CONFLICT.`,
+          },
+        },
+      },
+      ApplicationDocumentRecord: {
+        type: `object`,
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          application_id: { type: `string`, format: `uuid` },
+          group_key: {
+            type: `string`,
+            nullable: true,
+            description: `Logical document family; when set, uploads advance **version** and **DOCUMENT_VERSION_UPDATED** audits.`,
+          },
+          version: { type: `integer`, minimum: 1 },
+          is_current: {
+            type: `boolean`,
+            description: `Exactly one row per **group_key** is current when **group_key** is non-null.`,
+          },
+          file_path: { type: `string` },
+          original_name: { type: `string` },
+          mime_type: { type: `string` },
+          size_bytes: { type: `integer` },
+          uploader_id: { type: `string`, format: `uuid` },
+        },
+      },
+      ApplicationDocumentsListResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationDocumentRecord` },
           },
         },
       },
@@ -689,6 +740,55 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/api/applications/{id}/documents': {
+      get: {
+        tags: [`Applications`],
+        summary: `List documents for an application`,
+        description: `Returns **is_current** rows only unless **includeHistory=true** (full version chain per **group_key**). Same visibility rules as GET application detail.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+          {
+            name: `includeHistory`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, enum: [`true`, `false`] },
+            description: `When \`true\`, includes superseded versions (**is_current**: false).`,
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Documents for the application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationDocumentsListResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Caller cannot access this application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/applications/{id}/status': {
       patch: {
         tags: [`Applications`],
@@ -802,7 +902,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/api/documents/health': {
       get: {
         tags: [`Documents`],
-        summary: `Documents module health (stub)`,
+        summary: `Documents module health`,
         responses: {
           '200': {
             description: `OK`,
@@ -821,11 +921,20 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
-    '/api/documents/upload-demo': {
+    '/api/documents/{applicationId}': {
       post: {
         tags: [`Documents`],
-        summary: `Multipart upload demo`,
-        description: `Smoke test for multer; max file size enforced by middleware (5MB).`,
+        summary: `Upload a document for an application`,
+        description: `Multipart upload (field **file**; optional **group_key** text field). Allowed only while the application is **DRAFT** or **PENDING_CLARIFICATION** and only for the owning applicant. Stored filename is a UUID under **uploads/**. Without **group_key**, writes **DOCUMENT_UPLOADED** and **version** 1. With **group_key**, bumps **version**, clears **is_current** on prior rows in that group, sets **DOCUMENT_VERSION_UPDATED** audit **metadata** (\`group_key\`, \`version\`), all in one transaction.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `applicationId`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -838,29 +947,112 @@ export const openApiDocument: OpenAPIV3.Document = {
                     type: `string`,
                     format: `binary`,
                   },
+                  group_key: {
+                    type: `string`,
+                    description: `When provided, starts or continues a version chain for this logical document (e.g. license_pdf).`,
+                  },
                 },
               },
             },
           },
         },
         responses: {
-          '200': {
-            description: `File stored under uploads/`,
+          '201': {
+            description: `Document persisted`,
             content: {
               'application/json': {
                 schema: {
                   type: `object`,
+                  required: [`success`, `data`],
                   properties: {
-                    ok: { type: `boolean` },
-                    storedAs: { type: `string`, nullable: true },
-                    note: { type: `string` },
+                    success: { type: `boolean`, example: true },
+                    data: {
+                      type: `object`,
+                      properties: {
+                        id: { type: `string`, format: `uuid` },
+                        application_id: { type: `string`, format: `uuid` },
+                        group_key: { type: `string`, nullable: true },
+                        version: { type: `integer` },
+                        is_current: { type: `boolean` },
+                        file_path: { type: `string` },
+                        original_name: { type: `string` },
+                        mime_type: { type: `string` },
+                        size_bytes: { type: `integer` },
+                      },
+                    },
                   },
                 },
               },
             },
           },
+          '400': {
+            description: `Validation error`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Not allowed (wrong user or application state)`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
           '413': {
             description: `File too large`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/documents/{id}/download': {
+      get: {
+        tags: [`Documents`],
+        summary: `Download a stored document`,
+        description: `Applicant may download documents tied to their applications; **REVIEWER** and **APPROVER** may download any stored document.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `File stream`,
+            content: {
+              'application/octet-stream': {
+                schema: { type: `string`, format: `binary` },
+              },
+            },
+          },
+          '403': {
+            description: `Not allowed`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Document not found`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },

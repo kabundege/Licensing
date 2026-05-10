@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { NextFunction, Request, Response } from 'express';
@@ -5,7 +6,7 @@ import multer from 'multer';
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
-const uploadsRoot = path.resolve(process.cwd(), `uploads`);
+export const uploadsRoot = path.resolve(process.cwd(), `uploads`);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -13,8 +14,10 @@ const storage = multer.diskStorage({
     cb(null, uploadsRoot);
   },
   filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^\w.\-]+/g, `_`);
-    cb(null, `${Date.now()}-${safe}`);
+    const rawExt = path.extname(file.originalname ?? ``);
+    const ext =
+      rawExt.length > 0 && rawExt.length <= 16 ? rawExt.replace(/[^\w.]/g, ``) : ``;
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 

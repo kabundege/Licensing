@@ -1,7 +1,13 @@
+export type { ApplicationDocumentsQueryDto } from './application-documents-query.schema';
+export { applicationDocumentsQuerySchema } from './application-documents-query.schema';
+export type { ApplicationDocumentParamsDto } from './application-document-params.schema';
+export { applicationDocumentParamsSchema } from './application-document-params.schema';
 export type { ApplicationIdParamsDto } from './application-id-params.schema';
 export { applicationIdParamsSchema } from './application-id-params.schema';
 export type { ApplicationTransitionStatusBodyDto } from './application-transition-status-body.schema';
 export { applicationTransitionStatusBodySchema } from './application-transition-status-body.schema';
+export type { DocumentDownloadParamsDto } from './document-download-params.schema';
+export { documentDownloadParamsSchema } from './document-download-params.schema';
 export type { AdminUsersQueryDto } from './admin-users-query.schema';
 export { adminUsersQuerySchema } from './admin-users-query.schema';
 export type { CreateReviewerBodyDto } from './create-reviewer-body.schema';
