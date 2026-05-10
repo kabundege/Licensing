@@ -6,19 +6,24 @@ import { openApiDocument } from '../openapi';
 import { ApplicationStatus } from '../../modules/applications/entities';
 
 describe(`openApiDocument — Applications`, () => {
-  it(`documents PATCH /api/applications/{applicationId}/status`, () => {
-    const pathItem = openApiDocument.paths?.[`/api/applications/{applicationId}/status`];
-    expect(pathItem?.patch).toBeDefined();
-    expect(pathItem?.patch?.security).toEqual([{ bearerAuth: [] }]);
-    expect(pathItem?.patch?.responses?.[`200`]).toBeDefined();
-    expect(pathItem?.patch?.responses?.[`409`]).toBeDefined();
+  it(`documents CRUD-style application routes`, () => {
+    expect(openApiDocument.paths?.[`/api/applications`]?.get).toBeDefined();
+    expect(openApiDocument.paths?.[`/api/applications`]?.post).toBeDefined();
+    expect(openApiDocument.paths?.[`/api/applications/{id}`]?.get).toBeDefined();
+    const patchItem = openApiDocument.paths?.[`/api/applications/{id}/status`];
+    expect(patchItem?.patch).toBeDefined();
+    expect(patchItem?.patch?.security).toEqual([{ bearerAuth: [] }]);
+    expect(patchItem?.patch?.responses?.[`200`]).toBeDefined();
+    expect(patchItem?.patch?.responses?.[`409`]).toBeDefined();
   });
 
-  it(`defines transition request/response schemas`, () => {
+  it(`defines transition request and envelope response schemas`, () => {
     const schemas = openApiDocument.components?.schemas ?? {};
     expect(schemas.TransitionApplicationStatusRequest).toBeDefined();
-    expect(schemas.TransitionApplicationStatusResponse).toBeDefined();
+    expect(schemas.ApplicationSingleResponse).toBeDefined();
     expect(schemas.ApplicationRecord).toBeDefined();
+    expect(schemas.ApplicationDetailResponse).toBeDefined();
+    expect(schemas.ApplicationsListResponse).toBeDefined();
   });
 
   it(`ApplicationStatus enum matches domain values`, () => {

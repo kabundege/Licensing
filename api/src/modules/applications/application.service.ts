@@ -3,6 +3,7 @@ import { runInTransaction } from '../../database/transaction';
 import { env } from '../../config/env';
 import { AppError } from '../../shared/errors/AppError';
 import type { LoadedAuthUser } from '../auth/auth.types';
+import { RoleName } from '../auth/entities';
 import { actorHasPermissionPair } from '../auth/utils/permission-tokens';
 import { assertApproverSeparationFromReviewer } from './application-approve.guard';
 import {
@@ -11,11 +12,75 @@ import {
 } from './application-transitions';
 import { Application, ApplicationStatus, AuditLog } from './entities';
 
-export type TransitionApplicationStatusParams = {
-  applicationId: string;
-  targetStatus: ApplicationStatus;
-  actor: LoadedAuthUser;
-  expectedVersion: number;
+export const actorSeesAllApplications = (actor: LoadedAuthUser): boolean =>
+  actor.roles.some(
+    (r) =>
+      r === RoleName.REVIEWER ||
+      r === RoleName.APPROVER ||
+      r === RoleName.ADMIN
+  );
+
+const assertCanReadApplication = (actor: LoadedAuthUser, row: Application): void => {
+  if (actorSeesAllApplications(actor)) {
+    return;
+  }
+  if (row.applicant_id === actor.id) {
+    return;
+  }
+  throw AppError.unauthorized(`Insufficient permissions`);
+};
+
+export const listApplications = async (
+  actor: LoadedAuthUser
+): Promise<Application[]> => {
+  const repo = AppDataSource.getRepository(Application);
+  if (actorSeesAllApplications(actor)) {
+    return repo.find({ order: { id: `ASC` } });
+  }
+  return repo.find({
+    where: { applicant_id: actor.id },
+    order: { id: `ASC` },
+  });
+};
+
+export type ApplicationDetail = {
+  application: Application;
+  auditLogs: AuditLog[];
+};
+
+export const getApplicationWithAuditLogs = async (
+  id: string,
+  actor: LoadedAuthUser
+): Promise<ApplicationDetail> => {
+  const appRepo = AppDataSource.getRepository(Application);
+  const auditRepo = AppDataSource.getRepository(AuditLog);
+
+  const row = await appRepo.findOne({ where: { id } });
+  if (!row) {
+    throw AppError.notFound(`Application not found`);
+  }
+  assertCanReadApplication(actor, row);
+
+  const auditLogs = await auditRepo.find({
+    where: { application_id: id },
+    order: { timestamp: `ASC` },
+  });
+
+  return { application: row, auditLogs };
+};
+
+export const createApplication = async (
+  actor: LoadedAuthUser
+): Promise<Application> => {
+  const repo = AppDataSource.getRepository(Application);
+  const row = repo.create({
+    applicant_id: actor.id,
+    status: ApplicationStatus.DRAFT,
+    reviewer_id: null,
+    approver_id: null,
+    version: 0,
+  });
+  return repo.save(row);
 };
 
 const assertTransitionAllowed = (
@@ -58,10 +123,11 @@ const assertSeparationForFinalDecision = (
 };
 
 export const transitionStatus = async (
-  params: TransitionApplicationStatusParams
+  applicationId: string,
+  targetStatus: ApplicationStatus,
+  actor: LoadedAuthUser,
+  expectedVersion: number
 ): Promise<Application> => {
-  const { applicationId, targetStatus, actor, expectedVersion } = params;
-
   try {
     return await runInTransaction(AppDataSource, async (manager) => {
       const appRepo = manager.getRepository(Application);

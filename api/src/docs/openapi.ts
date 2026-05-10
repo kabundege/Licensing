@@ -9,7 +9,7 @@ export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
     title: `BNR Licensing API`,
-    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. **Application lifecycle**: transitions use \`PATCH /api/applications/{applicationId}/status\` with optimistic locking (\`expectedVersion\`) and permission tokens per target step (e.g. **application:submit**, **application:start_review**, **application:approve**). Final approval/rejection requires **application:approve** / **application:reject** and the actor must not be the application's assigned reviewer.`,
+    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. **Application lifecycle**: \`POST /api/applications\` creates **DRAFT** apps for the authenticated user; **Applicants** list/read only their own rows (**reviewers**, **approvers**, **admins** see all). \`PATCH /api/applications/{id}/status\` advances state with optimistic locking (\`expectedVersion\`). Requests targeting **APPROVED** must also carry **application:approve**. Separation-of-duties blocks final approval/rejection when the actor is the assigned reviewer.`,
     version: `0.1.0`,
   },
   servers: [
@@ -148,9 +148,21 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       ApplicationRecord: {
         type: `object`,
-        required: [`id`, `status`, `reviewer_id`, `approver_id`, `version`],
+        required: [
+          `id`,
+          `applicant_id`,
+          `status`,
+          `reviewer_id`,
+          `approver_id`,
+          `version`,
+        ],
         properties: {
           id: { type: `string`, format: `uuid` },
+          applicant_id: {
+            type: `string`,
+            format: `uuid`,
+            description: `Owning applicant user id (set from JWT on create).`,
+          },
           status: { $ref: `#/components/schemas/ApplicationStatus` },
           reviewer_id: {
             type: `string`,
@@ -171,6 +183,67 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
         },
       },
+      AuditLogRecord: {
+        type: `object`,
+        required: [
+          `id`,
+          `application_id`,
+          `actor_id`,
+          `from_state`,
+          `to_state`,
+          `timestamp`,
+        ],
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          application_id: { type: `string`, format: `uuid` },
+          actor_id: { type: `string`, format: `uuid` },
+          from_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          to_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          timestamp: { type: `string`, format: `date-time` },
+        },
+      },
+      ApplicationDetailRecord: {
+        allOf: [
+          { $ref: `#/components/schemas/ApplicationRecord` },
+          {
+            type: `object`,
+            required: [`auditLogs`],
+            properties: {
+              auditLogs: {
+                type: `array`,
+                items: { $ref: `#/components/schemas/AuditLogRecord` },
+              },
+            },
+          },
+        ],
+      },
+      ApplicationsListResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationRecord` },
+          },
+        },
+      },
+      ApplicationDetailResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/ApplicationDetailRecord` },
+        },
+      },
+      ApplicationSingleResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/ApplicationRecord` },
+        },
+      },
       TransitionApplicationStatusRequest: {
         type: `object`,
         required: [`targetStatus`, `expectedVersion`],
@@ -181,14 +254,6 @@ export const openApiDocument: OpenAPIV3.Document = {
             minimum: 0,
             description: `Must match the application's current version or the server responds with 409 CONFLICT.`,
           },
-        },
-      },
-      TransitionApplicationStatusResponse: {
-        type: `object`,
-        required: [`success`, `application`],
-        properties: {
-          success: { type: `boolean`, example: true },
-          application: { $ref: `#/components/schemas/ApplicationRecord` },
         },
       },
     },
@@ -532,15 +597,107 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
-    '/api/applications/{applicationId}/status': {
-      patch: {
+    '/api/applications': {
+      get: {
         tags: [`Applications`],
-        summary: `Transition application status`,
-        description: `Runs one validated workflow step (see Design state machine). Enforces JWT principal permissions for the requested transition, optimistic locking via **expectedVersion**, separation-of-duties on APPROVED/REJECTED (assigned reviewer cannot be the actor), and appends an **audit_logs** row in the same database transaction.`,
+        summary: `List applications`,
+        description: `**Applicants** receive only applications where **applicant_id** matches the JWT subject. **Reviewer**, **Approver**, and **Admin** roles receive all applications.`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Applications visible to the caller`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationsListResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: [`Applications`],
+        summary: `Create application (DRAFT)`,
+        description: `Creates a new application owned by the authenticated user (**applicant_id** = JWT subject).`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '201': {
+            description: `Draft created`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationSingleResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/applications/{id}': {
+      get: {
+        tags: [`Applications`],
+        summary: `Get application and audit trail`,
+        description: `Returns application fields plus **auditLogs** ordered oldest-first. Subject to the same visibility rules as the list endpoint.`,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: `applicationId`,
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Application detail`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationDetailResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller cannot access this application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/applications/{id}/status': {
+      patch: {
+        tags: [`Applications`],
+        summary: `Transition application status`,
+        description: `Runs one validated workflow step (see Design state machine). Requires JWT and permission tokens for the requested transition. When **targetStatus** is **APPROVED**, the caller must also satisfy **application:approve** at the route layer. Uses optimistic locking via **expectedVersion**, separation-of-duties on APPROVED/REJECTED (assigned reviewer cannot be the actor), and appends an **audit_logs** row in the same database transaction.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
             in: `path`,
             required: true,
             schema: { type: `string`, format: `uuid` },
@@ -559,7 +716,7 @@ export const openApiDocument: OpenAPIV3.Document = {
             description: `Status updated`,
             content: {
               'application/json': {
-                schema: { $ref: `#/components/schemas/TransitionApplicationStatusResponse` },
+                schema: { $ref: `#/components/schemas/ApplicationSingleResponse` },
               },
             },
           },
@@ -572,7 +729,7 @@ export const openApiDocument: OpenAPIV3.Document = {
             },
           },
           '403': {
-            description: `Missing or invalid token, insufficient permission token for this transition, or reviewer attempted final approval/rejection`,
+            description: `Missing or invalid token, insufficient permission for **APPROVED** target, insufficient permission token for this transition, or reviewer attempted final approval/rejection`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },

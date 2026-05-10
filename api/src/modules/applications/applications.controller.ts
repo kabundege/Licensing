@@ -1,35 +1,76 @@
 import type { Request, Response } from 'express';
 
 import type {
-  ApplicationStatusParamsDto,
+  ApplicationIdParamsDto,
   ApplicationTransitionStatusBodyDto,
 } from '../../validation/schemas';
 import { asyncHandler } from '../../shared/async-handler';
+import {
+  applicationPublicShape,
+  auditLogPublicShape,
+} from './application-response';
+import {
+  createApplication,
+  getApplicationWithAuditLogs,
+  listApplications,
+  transitionStatus,
+} from './application.service';
 import type { ApplicationStatus } from './entities';
-import { transitionStatus } from './application.service';
 
-export const patchApplicationStatus = asyncHandler(
+export const listApplicationsHandler = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { applicationId } = req.params as unknown as ApplicationStatusParamsDto;
-    const body = req.body as ApplicationTransitionStatusBodyDto;
-    const actor = req.user!;
-
-    const application = await transitionStatus({
-      applicationId,
-      targetStatus: body.targetStatus as ApplicationStatus,
-      actor,
-      expectedVersion: body.expectedVersion,
+    const applications = await listApplications(req.user!);
+    res.json({
+      success: true,
+      data: applications.map(applicationPublicShape),
     });
+  }
+);
+
+export const getApplicationByIdHandler = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as unknown as ApplicationIdParamsDto;
+    const { application, auditLogs } = await getApplicationWithAuditLogs(
+      id,
+      req.user!
+    );
 
     res.json({
       success: true,
-      application: {
-        id: application.id,
-        status: application.status,
-        reviewer_id: application.reviewer_id,
-        approver_id: application.approver_id,
-        version: application.version,
+      data: {
+        ...applicationPublicShape(application),
+        auditLogs: auditLogs.map(auditLogPublicShape),
       },
+    });
+  }
+);
+
+export const createApplicationHandler = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const application = await createApplication(req.user!);
+    res.status(201).json({
+      success: true,
+      data: applicationPublicShape(application),
+    });
+  }
+);
+
+export const patchApplicationStatus = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as unknown as ApplicationIdParamsDto;
+    const body = req.body as ApplicationTransitionStatusBodyDto;
+    const actor = req.user!;
+
+    const application = await transitionStatus(
+      id,
+      body.targetStatus as ApplicationStatus,
+      actor,
+      body.expectedVersion
+    );
+
+    res.json({
+      success: true,
+      data: applicationPublicShape(application),
     });
   }
 );
