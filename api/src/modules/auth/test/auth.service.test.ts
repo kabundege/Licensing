@@ -3,9 +3,9 @@ import jwt from 'jsonwebtoken';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  addPromotionRoleToUser,
   createReviewerAccount,
   loginUser,
-  promoteUserToReviewer,
   signupUser,
 } from '../auth.service';
 import type { Permission } from '../entities';
@@ -85,6 +85,7 @@ describe(`auth.service`, () => {
       const applicantRole = {
         id: `role-applicant`,
         name: RoleName.APPLICANT,
+        permissions: [],
       };
       const payload = {
         email: `new@example.com`,
@@ -95,9 +96,9 @@ describe(`auth.service`, () => {
         id: `user-1`,
         ...payload,
         password: `hashed`,
-        roleId: applicantRole.id,
+        roles: [applicantRole],
       };
-      const hydrated = { ...saved, role: applicantRole };
+      const hydrated = saved;
       mocks.userRepoMocks.findOne
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(hydrated as never);
@@ -111,6 +112,7 @@ describe(`auth.service`, () => {
       expect(u.id).toBe(`user-1`);
       expect(bcrypt.hash).toHaveBeenCalled();
       expect(mocks.userRepoMocks.save).toHaveBeenCalled();
+      expect(u.roles.some((r) => r.name === RoleName.APPLICANT)).toBe(true);
     });
 
     it(`throws CONFLICT when email exists`, async () => {
@@ -126,19 +128,27 @@ describe(`auth.service`, () => {
   });
 
   describe(`loginUser`, () => {
-    it(`returns jwt when password matches`, async () => {
-      const permission = {
-        resource: `users`,
-        action: `read`,
+    it(`returns jwt when password matches (roles + merged permissions)`, async () => {
+      const approvePerm = {
+        resource: `application`,
+        action: `approve`,
       } as Permission;
+      const reviewerRole = {
+        id: `r1`,
+        name: RoleName.REVIEWER,
+        permissions: [],
+      };
+      const approverRole = {
+        id: `r2`,
+        name: RoleName.APPROVER,
+        permissions: [approvePerm],
+      };
+
       const stored = {
         id: `u1`,
         email: `a@b.com`,
         password: `hash-in-db`,
-        role: {
-          name: RoleName.APPLICANT,
-          permissions: [permission],
-        },
+        roles: [reviewerRole, approverRole],
       };
       mocks.userRepoMocks.findOne.mockResolvedValue(stored as never);
       vi.spyOn(bcrypt, `compare`).mockResolvedValue(true as never);
@@ -151,8 +161,8 @@ describe(`auth.service`, () => {
         expect.objectContaining({
           sub: `u1`,
           email: stored.email,
-          role: RoleName.APPLICANT,
-          permissions: expect.arrayContaining([`read`, `users:read`]),
+          roles: [RoleName.APPROVER, RoleName.REVIEWER],
+          permissions: expect.arrayContaining([`approve`, `application:approve`]),
         }),
         expect.any(String),
         expect.objectContaining({ expiresIn: `12h`, algorithm: `HS256` })
@@ -164,10 +174,12 @@ describe(`auth.service`, () => {
         id: `u1`,
         email: `a@b.com`,
         password: `h`,
-        role: {
-          name: RoleName.APPLICANT,
-          permissions: [],
-        },
+        roles: [
+          {
+            name: RoleName.APPLICANT,
+            permissions: [],
+          },
+        ],
       } as never);
       vi.spyOn(bcrypt, `compare`).mockResolvedValue(false as never);
       await expect(
@@ -177,7 +189,7 @@ describe(`auth.service`, () => {
   });
 
   describe(`createReviewerAccount`, () => {
-    it(`persists reviewer role`, async () => {
+    it(`persists reviewer role assignment`, async () => {
       const reviewerRole = {
         id: `rv`,
         name: RoleName.REVIEWER,
@@ -188,8 +200,7 @@ describe(`auth.service`, () => {
         email: `r@x.com`,
         name: `R`,
         password: `x`,
-        roleId: reviewerRole.id,
-        role: reviewerRole,
+        roles: [reviewerRole],
       };
       mocks.userRepoMocks.findOne.mockResolvedValueOnce(null);
       mocks.roleRepoMocks.findOne.mockResolvedValue(reviewerRole as never);
@@ -204,13 +215,13 @@ describe(`auth.service`, () => {
         name: `R`,
       });
 
-      expect(u.roleId).toBe(reviewerRole.id);
+      expect(u.roles.map((r) => r.name)).toContain(RoleName.REVIEWER);
       expect(bcrypt.hash).toHaveBeenCalled();
     });
   });
 
-  describe(`promoteUserToReviewer`, () => {
-    it(`runs in transaction with audit stub`, async () => {
+  describe(`addPromotionRoleToUser`, () => {
+    it(`runs in transaction and logs audit when reviewer added`, async () => {
       const reviewerRole = {
         id: `rv`,
         name: RoleName.REVIEWER,
@@ -221,32 +232,60 @@ describe(`auth.service`, () => {
         email: `t@x.com`,
         name: `T`,
         password: `p`,
-        roleId: `old`,
-        role: { name: RoleName.APPLICANT, permissions: [] },
+        roles: [{ name: RoleName.APPLICANT, permissions: [] }],
       };
       const after = {
         ...record,
-        roleId: reviewerRole.id,
-        role: reviewerRole,
+        roles: [...record.roles, reviewerRole],
       };
       mocks.txRoleRepo.findOne.mockResolvedValue(reviewerRole as never);
       mocks.txUserRepo.findOne
         .mockResolvedValueOnce(record as never)
         .mockResolvedValueOnce(after as never);
 
-      const out = await promoteUserToReviewer({
+      const out = await addPromotionRoleToUser({
         targetUserId: `target`,
         performedByUserId: `admin`,
+        roleName: RoleName.REVIEWER,
       });
 
-      expect(out.roleId).toBe(reviewerRole.id);
+      expect(out.roles.some((r) => r.name === RoleName.REVIEWER)).toBe(true);
       expect(mocks.txUserRepo.save).toHaveBeenCalled();
       expect(mocks.runInTransaction).toHaveBeenCalled();
       expect(mocks.logPromotion).toHaveBeenCalledWith({
         promotedUserId: `target`,
         performedByUserId: `admin`,
-        newRole: RoleName.REVIEWER,
+        addedRole: RoleName.REVIEWER,
       });
+    });
+
+    it(`skips audit when role already assigned`, async () => {
+      const reviewerRole = {
+        id: `rv`,
+        name: RoleName.REVIEWER,
+        permissions: [],
+      };
+      const record = {
+        id: `target`,
+        email: `t@x.com`,
+        name: `T`,
+        password: `p`,
+        roles: [reviewerRole],
+      };
+
+      mocks.txRoleRepo.findOne.mockResolvedValue(reviewerRole as never);
+      mocks.txUserRepo.findOne
+        .mockResolvedValueOnce(record as never)
+        .mockResolvedValueOnce(record as never);
+
+      await addPromotionRoleToUser({
+        targetUserId: `target`,
+        performedByUserId: `admin`,
+        roleName: RoleName.REVIEWER,
+      });
+
+      expect(mocks.txUserRepo.save).not.toHaveBeenCalled();
+      expect(mocks.logPromotion).not.toHaveBeenCalled();
     });
   });
 });
