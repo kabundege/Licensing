@@ -274,6 +274,39 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
         },
       },
+      ApplicationDocumentRecord: {
+        type: `object`,
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          application_id: { type: `string`, format: `uuid` },
+          group_key: {
+            type: `string`,
+            nullable: true,
+            description: `Logical document family; when set, uploads advance **version** and **DOCUMENT_VERSION_UPDATED** audits.`,
+          },
+          version: { type: `integer`, minimum: 1 },
+          is_current: {
+            type: `boolean`,
+            description: `Exactly one row per **group_key** is current when **group_key** is non-null.`,
+          },
+          file_path: { type: `string` },
+          original_name: { type: `string` },
+          mime_type: { type: `string` },
+          size_bytes: { type: `integer` },
+          uploader_id: { type: `string`, format: `uuid` },
+        },
+      },
+      ApplicationDocumentsListResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationDocumentRecord` },
+          },
+        },
+      },
     },
   },
   paths: {
@@ -707,6 +740,55 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/api/applications/{id}/documents': {
+      get: {
+        tags: [`Applications`],
+        summary: `List documents for an application`,
+        description: `Returns **is_current** rows only unless **includeHistory=true** (full version chain per **group_key**). Same visibility rules as GET application detail.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+          {
+            name: `includeHistory`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, enum: [`true`, `false`] },
+            description: `When \`true\`, includes superseded versions (**is_current**: false).`,
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Documents for the application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationDocumentsListResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Caller cannot access this application`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/applications/{id}/status': {
       patch: {
         tags: [`Applications`],
@@ -843,7 +925,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: [`Documents`],
         summary: `Upload a document for an application`,
-        description: `Multipart upload (field **file**). Allowed only while the application is **DRAFT** or **PENDING_CLARIFICATION** and only for the owning applicant. Stored filename is a UUID under **uploads/**. An **audit_logs** row with **event_action** \`DOCUMENT_UPLOADED\` is written in the same database transaction as the **documents** row.`,
+        description: `Multipart upload (field **file**; optional **group_key** text field). Allowed only while the application is **DRAFT** or **PENDING_CLARIFICATION** and only for the owning applicant. Stored filename is a UUID under **uploads/**. Without **group_key**, writes **DOCUMENT_UPLOADED** and **version** 1. With **group_key**, bumps **version**, clears **is_current** on prior rows in that group, sets **DOCUMENT_VERSION_UPDATED** audit **metadata** (\`group_key\`, \`version\`), all in one transaction.`,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -865,6 +947,10 @@ export const openApiDocument: OpenAPIV3.Document = {
                     type: `string`,
                     format: `binary`,
                   },
+                  group_key: {
+                    type: `string`,
+                    description: `When provided, starts or continues a version chain for this logical document (e.g. license_pdf).`,
+                  },
                 },
               },
             },
@@ -885,6 +971,9 @@ export const openApiDocument: OpenAPIV3.Document = {
                       properties: {
                         id: { type: `string`, format: `uuid` },
                         application_id: { type: `string`, format: `uuid` },
+                        group_key: { type: `string`, nullable: true },
+                        version: { type: `integer` },
+                        is_current: { type: `boolean` },
                         file_path: { type: `string` },
                         original_name: { type: `string` },
                         mime_type: { type: `string` },
