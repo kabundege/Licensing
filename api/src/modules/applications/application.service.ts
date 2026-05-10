@@ -154,6 +154,8 @@ export const transitionStatus = async (
           actor_id: actor.id,
           from_state: fromState,
           to_state: targetStatus,
+          event_action: null,
+          document_id: null,
         })
       );
 

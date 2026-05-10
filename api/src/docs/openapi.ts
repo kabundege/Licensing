@@ -185,20 +185,32 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       AuditLogRecord: {
         type: `object`,
-        required: [
-          `id`,
-          `application_id`,
-          `actor_id`,
-          `from_state`,
-          `to_state`,
-          `timestamp`,
-        ],
+        required: [`id`, `application_id`, `actor_id`, `timestamp`],
         properties: {
           id: { type: `string`, format: `uuid` },
           application_id: { type: `string`, format: `uuid` },
           actor_id: { type: `string`, format: `uuid` },
-          from_state: { $ref: `#/components/schemas/ApplicationStatus` },
-          to_state: { $ref: `#/components/schemas/ApplicationStatus` },
+          from_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+            description: `Present for status transitions; null for non-transition events (e.g. document uploads).`,
+          },
+          to_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+            description: `Present for status transitions; null for non-transition events.`,
+          },
+          event_action: {
+            type: `string`,
+            nullable: true,
+            example: `DOCUMENT_UPLOADED`,
+            description: `Set for domain events stored in the same audit stream as transitions.`,
+          },
+          document_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+          },
           timestamp: { type: `string`, format: `date-time` },
         },
       },
