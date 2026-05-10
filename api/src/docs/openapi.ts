@@ -1,12 +1,15 @@
 import type { OpenAPIV3 } from 'openapi-types';
 
 import { env } from '../config/env';
+import { ApplicationStatus } from '../modules/applications/entities';
+
+const applicationStatusEnum = Object.values(ApplicationStatus);
 
 export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
     title: `BNR Licensing API`,
-    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. Admin routes require **manage_users**. Approving applications (when implemented) requires **application:approve** (\`application\` / \`approve\`) unless the actor is the application's assigned reviewer.`,
+    description: `Bank licensing and compliance portal API. Bearer JWTs from \`POST /api/auth/login\` include \`roles\` (sorted role names) and a flattened \`permissions\` token list from all assigned roles. **Application lifecycle**: transitions use \`PATCH /api/applications/{applicationId}/status\` with optimistic locking (\`expectedVersion\`) and permission tokens per target step (e.g. **application:submit**, **application:start_review**, **application:approve**). Final approval/rejection requires **application:approve** / **application:reject** and the actor must not be the application's assigned reviewer.`,
     version: `0.1.0`,
   },
   servers: [
@@ -19,7 +22,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: `Health`, description: `Liveness and module stubs` },
     { name: `Auth`, description: `Signup, login, and session` },
     { name: `Auth — Admin`, description: `User management (requires manage_users)` },
-    { name: `Applications`, description: `License applications (stub)` },
+    { name: `Applications`, description: `License applications — status transitions (RBAC + optimistic locking) and module health` },
     { name: `Audit`, description: `Audit trail (stub)` },
     { name: `Documents`, description: `Document upload (stub)` },
   ],
@@ -136,6 +139,56 @@ export const openApiDocument: OpenAPIV3.Document = {
           email: { type: `string`, format: `email` },
           password: { type: `string`, minLength: 8 },
           name: { type: `string`, minLength: 2 },
+        },
+      },
+      ApplicationStatus: {
+        type: `string`,
+        enum: applicationStatusEnum,
+        description: `Workflow state for a license application.`,
+      },
+      ApplicationRecord: {
+        type: `object`,
+        required: [`id`, `status`, `reviewer_id`, `approver_id`, `version`],
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          status: { $ref: `#/components/schemas/ApplicationStatus` },
+          reviewer_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+            description: `Set when a reviewer moves the application from SUBMITTED to UNDER_REVIEW.`,
+          },
+          approver_id: {
+            type: `string`,
+            format: `uuid`,
+            nullable: true,
+            description: `Set on APPROVED or REJECTED by the deciding actor.`,
+          },
+          version: {
+            type: `integer`,
+            minimum: 0,
+            description: `Incremented on each successful transition; client must send the prior value as expectedVersion.`,
+          },
+        },
+      },
+      TransitionApplicationStatusRequest: {
+        type: `object`,
+        required: [`targetStatus`, `expectedVersion`],
+        properties: {
+          targetStatus: { $ref: `#/components/schemas/ApplicationStatus` },
+          expectedVersion: {
+            type: `integer`,
+            minimum: 0,
+            description: `Must match the application's current version or the server responds with 409 CONFLICT.`,
+          },
+        },
+      },
+      TransitionApplicationStatusResponse: {
+        type: `object`,
+        required: [`success`, `application`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          application: { $ref: `#/components/schemas/ApplicationRecord` },
         },
       },
     },
@@ -479,10 +532,76 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/api/applications/{applicationId}/status': {
+      patch: {
+        tags: [`Applications`],
+        summary: `Transition application status`,
+        description: `Runs one validated workflow step (see Design state machine). Enforces JWT principal permissions for the requested transition, optimistic locking via **expectedVersion**, separation-of-duties on APPROVED/REJECTED (assigned reviewer cannot be the actor), and appends an **audit_logs** row in the same database transaction.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `applicationId`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: `#/components/schemas/TransitionApplicationStatusRequest` },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: `Status updated`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/TransitionApplicationStatusResponse` },
+              },
+            },
+          },
+          '400': {
+            description: `Invalid path, body, or disallowed transition for current status`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, insufficient permission token for this transition, or reviewer attempted final approval/rejection`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '409': {
+            description: `Version mismatch (concurrent update)`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/applications/health': {
       get: {
         tags: [`Applications`],
-        summary: `Applications module health (stub)`,
+        summary: `Applications module health`,
         responses: {
           '200': {
             description: `OK`,
