@@ -211,6 +211,12 @@ export const openApiDocument: OpenAPIV3.Document = {
             format: `uuid`,
             nullable: true,
           },
+          metadata: {
+            type: `object`,
+            nullable: true,
+            additionalProperties: true,
+            description: `JSON payload for domain audit events (e.g. document version metadata).`,
+          },
           timestamp: { type: `string`, format: `date-time` },
         },
       },

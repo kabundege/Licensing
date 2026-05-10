@@ -156,6 +156,7 @@ export const transitionStatus = async (
           to_state: targetStatus,
           event_action: null,
           document_id: null,
+          metadata: null,
         })
       );
 

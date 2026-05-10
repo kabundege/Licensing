@@ -307,6 +307,7 @@ describe(`application.service`, () => {
         to_state: ApplicationStatus.APPROVED,
         event_action: null,
         document_id: null,
+        metadata: null,
       });
       expect(mocks.runInTransaction).toHaveBeenCalledTimes(1);
     });
