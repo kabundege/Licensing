@@ -1,8 +1,12 @@
+export type { AdminUsersQueryDto } from './admin-users-query.schema';
+export { adminUsersQuerySchema } from './admin-users-query.schema';
 export type { CreateReviewerBodyDto } from './create-reviewer-body.schema';
 export { createReviewerBodySchema } from './create-reviewer-body.schema';
 export { EMAIL_MAX } from './fields.schema';
 export type { LoginBodyDto } from './login-body.schema';
 export { loginBodySchema } from './login-body.schema';
+export type { PromoteBodyDto } from './promote-body.schema';
+export { promoteBodySchema } from './promote-body.schema';
 export type { PromoteParamsDto } from './promote-params.schema';
 export { promoteParamsSchema } from './promote-params.schema';
 export type { SignupBodyDto } from './signup-body.schema';
