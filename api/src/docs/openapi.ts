@@ -22,8 +22,15 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: `Health`, description: `Liveness and module stubs` },
     { name: `Auth`, description: `Signup, login, and session` },
     { name: `Auth — Admin`, description: `User management (requires manage_users)` },
-    { name: `Applications`, description: `License applications — status transitions (RBAC + optimistic locking) and module health` },
-    { name: `Audit`, description: `Audit trail (stub)` },
+    {
+      name: `Applications`,
+      description: `License applications — status transitions (RBAC + optimistic locking) and module health`,
+    },
+    {
+      name: `Compliance — Audit`,
+      description: `Protected compliance routes for regulatory oversight (staff roles only).`,
+    },
+    { name: `Audit`, description: `Audit API — admin global audit search and module health` },
     { name: `Documents`, description: `Application document upload and secure download` },
   ],
   components: {
@@ -252,6 +259,74 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           success: { type: `boolean`, example: true },
           data: { $ref: `#/components/schemas/ApplicationDetailRecord` },
+        },
+      },
+      ApplicationComplianceAuditActor: {
+        type: `object`,
+        required: [`name`, `role`],
+        properties: {
+          name: { type: `string`, description: `Display name of the account that performed the action.` },
+          role: {
+            type: `string`,
+            enum: [`APPLICANT`, `REVIEWER`, `APPROVER`, `ADMIN`],
+            description: `Highest-privilege role assigned to the actor (seniority for oversight).`,
+          },
+        },
+      },
+      ApplicationComplianceAuditLogEntry: {
+        type: `object`,
+        required: [
+          `id`,
+          `application_id`,
+          `actor_id`,
+          `actor`,
+          `action_label`,
+          `event_action`,
+          `from_state`,
+          `to_state`,
+          `document_id`,
+          `metadata`,
+          `timestamp`,
+        ],
+        properties: {
+          id: { type: `string`, format: `uuid` },
+          application_id: { type: `string`, format: `uuid` },
+          actor_id: { type: `string`, format: `uuid` },
+          actor: { $ref: `#/components/schemas/ApplicationComplianceAuditActor` },
+          action_label: {
+            type: `string`,
+            description: `Human-readable description of the action (mapped from transitions or domain event codes).`,
+            example: `Final License Approval`,
+          },
+          event_action: { type: `string`, nullable: true },
+          from_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+          },
+          to_state: {
+            allOf: [{ $ref: `#/components/schemas/ApplicationStatus` }],
+            nullable: true,
+          },
+          document_id: { type: `string`, format: `uuid`, nullable: true },
+          metadata: {
+            type: `object`,
+            nullable: true,
+            additionalProperties: true,
+            description: `For document upload/version events, includes **version** and **original_name** from stored file metadata.`,
+          },
+          timestamp: { type: `string`, format: `date-time` },
+        },
+      },
+      ApplicationComplianceAuditLogsResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationComplianceAuditLogEntry` },
+            description: `Newest audit entries first.`,
+          },
         },
       },
       ApplicationSingleResponse: {
@@ -698,6 +773,49 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/api/applications/{id}/audit-logs': {
+      get: {
+        tags: [`Compliance — Audit`],
+        summary: `List compliance audit history for an application`,
+        description: `**Protected compliance route** — for regulatory oversight and internal review. Returns audit rows with actor identity (**name**, highest **role** seniority) and human-readable **action_label** values. **Applicants** are denied: only **REVIEWER**, **APPROVER**, and **ADMIN** may call this endpoint. Ordering: newest first. Document-related entries enrich **metadata** with **version** and **original_name**. Requires JWT.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+            description: `Application id`,
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Audit log entries (newest first)`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationComplianceAuditLogsResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller is not REVIEWER, APPROVER, or ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/applications/{id}': {
       get: {
         tags: [`Applications`],
@@ -893,6 +1011,79 @@ export const openApiDocument: OpenAPIV3.Document = {
                     status: { type: `string` },
                   },
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/audit/logs': {
+      get: {
+        tags: [`Audit`],
+        summary: `List audit logs (admin, filtered)`,
+        description: `**ADMIN only.** Returns audit log entries across all applications, newest first, with the same enriched shape as compliance audit views (**action_label**, **actor**, document **metadata**). Filters are combined with **AND**. \`applicant_id\`, \`reviewer_id\`, and \`approver_id\` match the corresponding columns on **applications** (assigned reviewer / deciding approver). \`document_id\` filters **audit_logs.document_id**. \`limit\` caps result size (default 500, max 2000).`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `applicant_id`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, format: `uuid` },
+          },
+          {
+            name: `reviewer_id`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, format: `uuid` },
+            description: `Matches **applications.reviewer_id** (assigned reviewer).`,
+          },
+          {
+            name: `approver_id`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, format: `uuid` },
+            description: `Matches **applications.approver_id**.`,
+          },
+          {
+            name: `document_id`,
+            in: `query`,
+            required: false,
+            schema: { type: `string`, format: `uuid` },
+          },
+          {
+            name: `limit`,
+            in: `query`,
+            required: false,
+            schema: {
+              type: `integer`,
+              minimum: 1,
+              maximum: 2000,
+              default: 500,
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `Audit entries`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ApplicationComplianceAuditLogsResponse` },
+              },
+            },
+          },
+          '400': {
+            description: `Invalid query`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller is not ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
               },
             },
           },

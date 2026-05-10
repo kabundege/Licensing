@@ -75,6 +75,10 @@ vi.mock(`../../../database/data-source`, () => ({
   },
 }));
 
+vi.mock(`../../../repository`, () => ({
+  auditLogRepo: mocks.dsAuditRepo,
+}));
+
 vi.mock(`../../../config/env`, async (importOriginal) => {
   const mod = await importOriginal<typeof import("../../../config/env")>();
   return { ...mod, env: { ...mod.env, nodeEnv: `test` } };

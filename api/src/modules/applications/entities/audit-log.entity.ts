@@ -1,8 +1,16 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 import { ApplicationStatus } from './application-status';
 
 @Entity(`audit_logs`)
+@Index(`idx_audit_logs_application_id_timestamp`, [`application_id`, `timestamp`])
+@Index(`idx_audit_logs_document_id`, [`document_id`])
 export class AuditLog {
   @PrimaryGeneratedColumn(`uuid`)
   id!: string;

@@ -16,6 +16,7 @@ import {
   listApplications,
   transitionStatus,
 } from './application.service';
+import { listComplianceAuditLogs } from './compliance-audit-logs.service';
 import type { ApplicationStatus } from './entities';
 import { documentPublicShape } from '../documents/document-response';
 import { listDocumentsForApplication } from '../documents/documents.service';
@@ -26,6 +27,17 @@ export const listApplicationsHandler = asyncHandler(
     res.json({
       success: true,
       data: applications.map(applicationPublicShape),
+    });
+  }
+);
+
+export const listApplicationAuditLogsHandler = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as unknown as ApplicationIdParamsDto;
+    const data = await listComplianceAuditLogs(id);
+    res.json({
+      success: true,
+      data,
     });
   }
 );

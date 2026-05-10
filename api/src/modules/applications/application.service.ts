@@ -1,6 +1,7 @@
+import { env } from '../../config/env';
 import { AppDataSource } from '../../database/data-source';
 import { runInTransaction } from '../../database/transaction';
-import { env } from '../../config/env';
+import { auditLogRepo } from '../../repository';
 import { AppError } from '../../shared/errors/AppError';
 import type { LoadedAuthUser } from '../auth/auth.types';
 import { RoleName } from '../auth/entities';
@@ -53,15 +54,13 @@ export const getApplicationWithAuditLogs = async (
   actor: LoadedAuthUser
 ): Promise<ApplicationDetail> => {
   const appRepo = AppDataSource.getRepository(Application);
-  const auditRepo = AppDataSource.getRepository(AuditLog);
-
   const row = await appRepo.findOne({ where: { id } });
   if (!row) {
     throw AppError.notFound(`Application not found`);
   }
   assertCanReadApplication(actor, row);
 
-  const auditLogs = await auditRepo.find({
+  const auditLogs = await auditLogRepo.find({
     where: { application_id: id },
     order: { timestamp: `ASC` },
   });
