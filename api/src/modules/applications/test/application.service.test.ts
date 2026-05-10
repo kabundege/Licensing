@@ -10,6 +10,7 @@ import {
   listApplications,
   transitionStatus,
 } from '../application.service';
+import { AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY } from '../../audit/audit-actions';
 import { ApplicationStatus } from '../entities';
 
 const mocks = vi.hoisted(() => {
@@ -29,6 +30,8 @@ const mocks = vi.hoisted(() => {
   };
   const dsAuditRepo = {
     find: vi.fn(),
+    create: vi.fn((x: unknown) => x),
+    save: vi.fn().mockResolvedValue(undefined),
   };
   const transactionalManagerStub = {
     getRepository(entity: unknown) {
@@ -373,18 +376,28 @@ describe(`application.service`, () => {
     });
 
     it(`throws UNAUTHORIZED when approver is the assigned reviewer`, async () => {
-      mocks.txAppRepo.findOne.mockResolvedValue({
+      const row = {
         id: `app-1`,
         applicant_id: `a`,
         status: ApplicationStatus.FINAL_REVIEW,
         reviewer_id: actorWithApprove.id,
         approver_id: null,
         version: 0,
-      });
+      };
+      mocks.txAppRepo.findOne.mockResolvedValue(row);
+      mocks.dsApplicationRepo.findOne.mockResolvedValue(row);
 
       await expect(
         transitionStatus(`app-1`, ApplicationStatus.APPROVED, actorWithApprove, 0)
       ).rejects.toMatchObject({ code: `UNAUTHORIZED` });
+
+      expect(mocks.dsAuditRepo.save).toHaveBeenCalledTimes(1);
+      expect(mocks.dsAuditRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_action: AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY,
+          application_id: `app-1`,
+        })
+      );
     });
   });
 });

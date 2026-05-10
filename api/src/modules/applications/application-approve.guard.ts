@@ -7,6 +7,9 @@ export type ApplicationApproveGuardInput = {
   reviewerUserId?: string | null;
 };
 
+export const APPROVAL_BLOCKED_FOR_ASSIGNED_REVIEWER_MESSAGE =
+  `Approval blocked for assigned reviewer`;
+
 export const userHasApplicationApprovePermission = (tokens: string[]): boolean =>
   actorHasPermissionPair(tokens, APPLICATION_APPROVE.resource, APPLICATION_APPROVE.action);
 
@@ -15,7 +18,7 @@ export const assertApproverSeparationFromReviewer = (
   reviewerUserId: string | null | undefined
 ): void => {
   if (reviewerUserId != null && reviewerUserId === actor.id) {
-    throw AppError.unauthorized(`Approval blocked for assigned reviewer`);
+    throw AppError.unauthorized(APPROVAL_BLOCKED_FOR_ASSIGNED_REVIEWER_MESSAGE);
   }
 };
 

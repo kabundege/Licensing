@@ -6,7 +6,11 @@ import { AppError } from '../../shared/errors/AppError';
 import type { LoadedAuthUser } from '../auth/auth.types';
 import { RoleName } from '../auth/entities';
 import { actorHasPermissionPair } from '../auth/utils/permission-tokens';
-import { assertApproverSeparationFromReviewer } from './application-approve.guard';
+import {
+  APPROVAL_BLOCKED_FOR_ASSIGNED_REVIEWER_MESSAGE,
+  assertApproverSeparationFromReviewer,
+} from './application-approve.guard';
+import { AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY } from '../audit/audit-actions';
 import {
   getRequiredPermissionForTransition,
   VALID_TRANSITIONS,
@@ -121,6 +125,37 @@ const assertSeparationForFinalDecision = (
   }
 };
 
+const recordSeparationBlockAuditIfApplicable = async (
+  applicationId: string,
+  actor: LoadedAuthUser,
+  targetStatus: ApplicationStatus
+): Promise<void> => {
+  if (
+    targetStatus !== ApplicationStatus.APPROVED &&
+    targetStatus !== ApplicationStatus.REJECTED
+  ) {
+    return;
+  }
+  const appRepo = AppDataSource.getRepository(Application);
+  const row = await appRepo.findOne({ where: { id: applicationId } });
+  if (!row || row.reviewer_id == null || row.reviewer_id !== actor.id) {
+    return;
+  }
+  await auditLogRepo.save(
+    auditLogRepo.create({
+      application_id: applicationId,
+      actor_id: actor.id,
+      from_state: row.status,
+      to_state: targetStatus,
+      event_action: AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY,
+      document_id: null,
+      metadata: {
+        reason: `approver_same_as_assigned_reviewer`,
+      },
+    })
+  );
+};
+
 export const transitionStatus = async (
   applicationId: string,
   targetStatus: ApplicationStatus,
@@ -179,6 +214,26 @@ export const transitionStatus = async (
       return appRepo.save(row);
     });
   } catch (err) {
+    if (
+      err instanceof AppError &&
+      err.code === `UNAUTHORIZED` &&
+      err.message === APPROVAL_BLOCKED_FOR_ASSIGNED_REVIEWER_MESSAGE
+    ) {
+      try {
+        await recordSeparationBlockAuditIfApplicable(
+          applicationId,
+          actor,
+          targetStatus
+        );
+      } catch (auditErr) {
+        if (env.nodeEnv === `development`) {
+          console.error(
+            `[ApplicationService.transitionStatus] separation block audit`,
+            auditErr
+          );
+        }
+      }
+    }
     if (env.nodeEnv === `development`) {
       console.error(`[ApplicationService.transitionStatus]`, err);
     }
