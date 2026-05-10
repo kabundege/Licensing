@@ -1,5 +1,14 @@
 import { AppDataSource } from '../../src/database/data-source';
-import { APPLICATION_APPROVE, USERS_MANAGE_USERS } from '../../src/modules/auth/app-permissions';
+import {
+  APPLICATION_APPROVE,
+  APPLICATION_ESCALATE_FINAL,
+  APPLICATION_REJECT,
+  APPLICATION_REQUEST_CLARIFICATION,
+  APPLICATION_RESUBMIT,
+  APPLICATION_START_REVIEW,
+  APPLICATION_SUBMIT,
+  USERS_MANAGE_USERS,
+} from '../../src/modules/auth/app-permissions';
 import { Permission, Role, RoleName } from '../../src/modules/auth/entities';
 
 type RoleSeedDefinition = {
@@ -13,7 +22,19 @@ export const seedPermissionsAndRoles = async (): Promise<Map<RoleName, Role>> =>
 
   const permissionPairs = [
     { resource: USERS_MANAGE_USERS.resource, action: USERS_MANAGE_USERS.action },
+    { resource: APPLICATION_SUBMIT.resource, action: APPLICATION_SUBMIT.action },
+    { resource: APPLICATION_START_REVIEW.resource, action: APPLICATION_START_REVIEW.action },
+    {
+      resource: APPLICATION_REQUEST_CLARIFICATION.resource,
+      action: APPLICATION_REQUEST_CLARIFICATION.action,
+    },
+    { resource: APPLICATION_RESUBMIT.resource, action: APPLICATION_RESUBMIT.action },
+    {
+      resource: APPLICATION_ESCALATE_FINAL.resource,
+      action: APPLICATION_ESCALATE_FINAL.action,
+    },
     { resource: APPLICATION_APPROVE.resource, action: APPLICATION_APPROVE.action },
+    { resource: APPLICATION_REJECT.resource, action: APPLICATION_REJECT.action },
   ];
 
   const permByKey = new Map<string, Permission>();
@@ -29,9 +50,22 @@ export const seedPermissionsAndRoles = async (): Promise<Map<RoleName, Role>> =>
   }
 
   const defs: RoleSeedDefinition[] = [
-    { name: RoleName.APPLICANT, permissionPairs: [] },
-    { name: RoleName.REVIEWER, permissionPairs: [] },
-    { name: RoleName.APPROVER, permissionPairs: [APPLICATION_APPROVE] },
+    {
+      name: RoleName.APPLICANT,
+      permissionPairs: [APPLICATION_SUBMIT, APPLICATION_RESUBMIT],
+    },
+    {
+      name: RoleName.REVIEWER,
+      permissionPairs: [
+        APPLICATION_START_REVIEW,
+        APPLICATION_REQUEST_CLARIFICATION,
+        APPLICATION_ESCALATE_FINAL,
+      ],
+    },
+    {
+      name: RoleName.APPROVER,
+      permissionPairs: [APPLICATION_APPROVE, APPLICATION_REJECT],
+    },
     { name: RoleName.ADMIN, permissionPairs: [USERS_MANAGE_USERS] },
   ];
 
