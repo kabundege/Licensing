@@ -1,4 +1,5 @@
 import {
+  AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY,
   AUDIT_ACTION_DOCUMENT_UPLOADED,
   AUDIT_ACTION_DOCUMENT_VERSION_UPDATED,
 } from '../audit/audit-actions';
@@ -27,6 +28,7 @@ const TRANSITION_LABELS: Record<string, string> = {
 const EVENT_ACTION_LABELS: Record<string, string> = {
   [AUDIT_ACTION_DOCUMENT_UPLOADED]: `Document Uploaded`,
   [AUDIT_ACTION_DOCUMENT_VERSION_UPDATED]: `Document Version Updated`,
+  [AUDIT_ACTION_APPROVAL_BLOCKED_REVIEWER_IDENTITY]: `Approval Blocked (Reviewer Identity Conflict)`,
 };
 
 export const humanReadableAuditAction = (input: {

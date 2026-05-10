@@ -5,6 +5,21 @@ import { ApplicationStatus } from '../modules/applications/entities';
 
 const applicationStatusEnum = Object.values(ApplicationStatus);
 
+const regulatorySummaryApplicationsByStatusRequired = [...applicationStatusEnum].sort(
+  (a, b) => String(a).localeCompare(String(b))
+);
+
+const regulatorySummaryApplicationsByStatusProperties = Object.fromEntries(
+  applicationStatusEnum.map((status) => [
+    status,
+    {
+      type: `integer`,
+      minimum: 0,
+      description: `Applications currently in **${status}**.`,
+    },
+  ])
+) as Record<string, OpenAPIV3.SchemaObject>;
+
 export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
@@ -32,6 +47,14 @@ export const openApiDocument: OpenAPIV3.Document = {
     },
     { name: `Audit`, description: `Audit API — admin global audit search and module health` },
     { name: `Documents`, description: `Application document upload and secure download` },
+    {
+      name: `Executive Oversight Analytics`,
+      description: `Admin-only regulatory dashboard metrics — pipeline volumes, reviewer-cycle timing, and oldest in-flight applications.`,
+    },
+    {
+      name: `Regulatory Oversight Dashboard`,
+      description: `Supervisor dashboard statistics for **ADMIN** and **APPROVER** principals with **analytics:view_dashboard** — status mix, reviewer workload, throughput timing, and security block events.`,
+    },
   ],
   components: {
     securitySchemes: {
@@ -380,6 +403,206 @@ export const openApiDocument: OpenAPIV3.Document = {
             type: `array`,
             items: { $ref: `#/components/schemas/ApplicationDocumentRecord` },
           },
+        },
+      },
+      RegulatorySummaryApplicationsByStatus: {
+        type: `object`,
+        description: `Total applications per **ApplicationStatus** (dense map for charting).`,
+        required: regulatorySummaryApplicationsByStatusRequired,
+        properties: regulatorySummaryApplicationsByStatusProperties,
+      },
+      RegulatorySummaryUnderReviewMetrics: {
+        type: `object`,
+        required: [`averageDurationSeconds`, `completedCyclesCount`],
+        properties: {
+          averageDurationSeconds: {
+            type: `number`,
+            nullable: true,
+            description: `Mean duration in seconds of completed **UNDER_REVIEW** spells derived from **audit_logs** (each transition into UNDER_REVIEW through the next transition). \`null\` when no completed spells exist.`,
+          },
+          completedCyclesCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Number of completed UNDER_REVIEW spells used for the average.`,
+          },
+        },
+      },
+      RegulatorySummaryBottleneck: {
+        type: `object`,
+        required: [
+          `applicationId`,
+          `applicantId`,
+          `status`,
+          `firstAuditAt`,
+          `ageSeconds`,
+        ],
+        properties: {
+          applicationId: { type: `string`, format: `uuid` },
+          applicantId: { type: `string`, format: `uuid` },
+          status: { $ref: `#/components/schemas/ApplicationStatus` },
+          firstAuditAt: {
+            type: `string`,
+            format: `date-time`,
+            description: `Earliest **audit_logs.timestamp** for this application (proxy for intake / first movement).`,
+          },
+          ageSeconds: {
+            type: `integer`,
+            minimum: 0,
+            description: `Seconds from **firstAuditAt** to **asOf** on the parent payload.`,
+          },
+        },
+      },
+      RegulatorySummary: {
+        type: `object`,
+        required: [
+          `asOf`,
+          `applicationsByStatus`,
+          `underReview`,
+          `topPendingBottlenecks`,
+        ],
+        properties: {
+          asOf: {
+            type: `string`,
+            format: `date-time`,
+            description: `Snapshot timestamp for time-based fields in this response.`,
+          },
+          applicationsByStatus: {
+            $ref: `#/components/schemas/RegulatorySummaryApplicationsByStatus`,
+          },
+          underReview: {
+            $ref: `#/components/schemas/RegulatorySummaryUnderReviewMetrics`,
+          },
+          topPendingBottlenecks: {
+            type: `array`,
+            description: `Up to five oldest **SUBMITTED**, **UNDER_REVIEW**, **PENDING_CLARIFICATION**, or **FINAL_REVIEW** applications by earliest audit activity (pipeline bottleneck signal).`,
+            maxItems: 5,
+            items: { $ref: `#/components/schemas/RegulatorySummaryBottleneck` },
+          },
+        },
+      },
+      RegulatorySummaryResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/RegulatorySummary` },
+        },
+      },
+      DashboardStatusDistribution: {
+        type: `object`,
+        required: [`labels`, `values`, `byStatus`],
+        description: `Chart-friendly series plus a dense map keyed by **ApplicationStatus**.`,
+        properties: {
+          labels: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationStatus` },
+            description: `Status labels in enum order.`,
+          },
+          values: {
+            type: `array`,
+            items: { type: `integer`, minimum: 0 },
+            description: `Counts aligned with **labels**.`,
+          },
+          byStatus: {
+            $ref: `#/components/schemas/RegulatorySummaryApplicationsByStatus`,
+          },
+        },
+      },
+      DashboardReviewerWorkloadRow: {
+        type: `object`,
+        required: [`userId`, `name`, `email`, `assignedCount`],
+        properties: {
+          userId: { type: `string`, format: `uuid` },
+          name: { type: `string` },
+          email: { type: `string` },
+          assignedCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Applications with **reviewer_id** = this user (current assignments).`,
+          },
+        },
+      },
+      DashboardReviewerWorkload: {
+        type: `object`,
+        required: [`labels`, `values`, `reviewers`],
+        properties: {
+          labels: {
+            type: `array`,
+            items: { type: `string` },
+            description: `Reviewer **name** values, aligned with **values**.`,
+          },
+          values: {
+            type: `array`,
+            items: { type: `integer`, minimum: 0 },
+            description: `Assigned application counts per reviewer.`,
+          },
+          reviewers: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/DashboardReviewerWorkloadRow` },
+          },
+        },
+      },
+      DashboardSubmittedToFinalReview: {
+        type: `object`,
+        required: [`averageHours`, `averageDays`, `sampleCount`],
+        properties: {
+          averageHours: {
+            type: `number`,
+            nullable: true,
+            description: `Mean hours between first **SUBMITTED** and first **FINAL_REVIEW** audit timestamps per application (\`null\` when no samples).`,
+          },
+          averageDays: {
+            type: `number`,
+            nullable: true,
+            description: `**averageHours / 24** for calendar-scale dashboards.`,
+          },
+          sampleCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Applications that reached **FINAL_REVIEW** with a prior **SUBMITTED** audit row.`,
+          },
+        },
+      },
+      DashboardSecurityIntegrity: {
+        type: `object`,
+        required: [`blockedApprovalIdentityConflictCount`],
+        properties: {
+          blockedApprovalIdentityConflictCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `**audit_logs** rows with **APPROVAL_BLOCKED_REVIEWER_IDENTITY** (blocked final decision: actor was the assigned reviewer).`,
+          },
+        },
+      },
+      DashboardGlobalStats: {
+        type: `object`,
+        required: [
+          `statusDistribution`,
+          `reviewerWorkload`,
+          `submittedToFinalReview`,
+          `securityIntegrity`,
+        ],
+        properties: {
+          statusDistribution: {
+            $ref: `#/components/schemas/DashboardStatusDistribution`,
+          },
+          reviewerWorkload: {
+            $ref: `#/components/schemas/DashboardReviewerWorkload`,
+          },
+          submittedToFinalReview: {
+            $ref: `#/components/schemas/DashboardSubmittedToFinalReview`,
+          },
+          securityIntegrity: {
+            $ref: `#/components/schemas/DashboardSecurityIntegrity`,
+          },
+        },
+      },
+      DashboardGlobalStatsResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/DashboardGlobalStats` },
         },
       },
     },
@@ -1081,6 +1304,58 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
           '403': {
             description: `Missing or invalid token, or caller is not ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/analytics/summary': {
+      get: {
+        tags: [`Executive Oversight Analytics`],
+        summary: `Regulatory summary dashboard`,
+        description: `**Executive Oversight Analytics** — **ADMIN** only. Aggregated licensing metrics for regulatory dashboards: totals by status, historical mean time in **UNDER_REVIEW** (from audit transitions), and the five oldest in-flight pipeline applications.`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Regulatory summary snapshot`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/RegulatorySummaryResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller is not ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/admin/dashboard-stats': {
+      get: {
+        tags: [`Regulatory Oversight Dashboard`],
+        summary: `Supervisor dashboard statistics`,
+        description: `**Regulatory Oversight Dashboard** — requires permission **analytics:view_dashboard** (seeded on **ADMIN** and **APPROVER** roles). Returns chart-oriented aggregates: application counts by status, per-reviewer assignment load, mean lag from **SUBMITTED** to **FINAL_REVIEW** from **audit_logs**, and count of blocked approvals where the actor matched the assigned reviewer (**APPROVAL_BLOCKED_REVIEWER_IDENTITY**).`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Dashboard aggregates`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/DashboardGlobalStatsResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or missing **analytics:view_dashboard**`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },

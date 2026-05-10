@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 
 import { asyncHandler } from '../../shared/async-handler';
-import type { AdminAuditLogsQueryDto } from '../validation/schemas';
+import type { AdminAuditLogsQueryDto } from '../../validation/schemas';
 
 import { listAdminFilteredAuditLogs } from './admin-audit-logs.service';
 
