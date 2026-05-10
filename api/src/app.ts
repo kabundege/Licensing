@@ -1,7 +1,6 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 
 import { env } from './config/env';
@@ -43,9 +42,6 @@ export const createApp = (): express.Application => {
     })
   );
   app.use(express.json({ limit: `1mb` }));
-
-  const uploadsDir = path.join(process.cwd(), `uploads`);
-  app.use(`/uploads`, express.static(uploadsDir));
 
   app.get(`/health`, (_req, res) => {
     res.json({ ok: true, service: `bnr-licensing-api` });
