@@ -8,6 +8,8 @@ export type { ApplicationTransitionStatusBodyDto } from './application-transitio
 export { applicationTransitionStatusBodySchema } from './application-transition-status-body.schema';
 export type { DocumentDownloadParamsDto } from './document-download-params.schema';
 export { documentDownloadParamsSchema } from './document-download-params.schema';
+export type { AdminAuditLogsQueryDto } from './admin-audit-logs-query.schema';
+export { adminAuditLogsQuerySchema } from './admin-audit-logs-query.schema';
 export type { AdminUsersQueryDto } from './admin-users-query.schema';
 export { adminUsersQuerySchema } from './admin-users-query.schema';
 export type { CreateReviewerBodyDto } from './create-reviewer-body.schema';
