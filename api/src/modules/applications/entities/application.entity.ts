@@ -7,6 +7,9 @@ export class Application {
   @PrimaryGeneratedColumn(`uuid`)
   id!: string;
 
+  @Column({ type: `uuid` })
+  applicant_id!: string;
+
   @Column({ type: `enum`, enum: ApplicationStatus, enumName: `application_status_enum` })
   status!: ApplicationStatus;
 

@@ -1,22 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  applicationStatusParamsSchema,
+  applicationIdParamsSchema,
   applicationTransitionStatusBodySchema,
 } from '../../schemas/index';
 import { ApplicationStatus } from '../../../modules/applications/entities';
 
-describe(`applicationStatusParamsSchema`, () => {
-  it(`requires uuid applicationId`, async () => {
+describe(`applicationIdParamsSchema`, () => {
+  it(`requires uuid id`, async () => {
+    await expect(applicationIdParamsSchema.validate({ id: `not-uuid` })).rejects.toThrow();
     await expect(
-      applicationStatusParamsSchema.validate({ applicationId: `not-uuid` })
-    ).rejects.toThrow();
-    await expect(
-      applicationStatusParamsSchema.validate({
-        applicationId: `550e8400-e29b-41d4-a716-446655440000`,
+      applicationIdParamsSchema.validate({
+        id: `550e8400-e29b-41d4-a716-446655440000`,
       })
     ).resolves.toMatchObject({
-      applicationId: `550e8400-e29b-41d4-a716-446655440000`,
+      id: `550e8400-e29b-41d4-a716-446655440000`,
     });
   });
 });
