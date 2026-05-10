@@ -24,7 +24,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: `Auth — Admin`, description: `User management (requires manage_users)` },
     { name: `Applications`, description: `License applications — status transitions (RBAC + optimistic locking) and module health` },
     { name: `Audit`, description: `Audit trail (stub)` },
-    { name: `Documents`, description: `Document upload (stub)` },
+    { name: `Documents`, description: `Application document upload and secure download` },
   ],
   components: {
     securitySchemes: {
@@ -814,7 +814,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/api/documents/health': {
       get: {
         tags: [`Documents`],
-        summary: `Documents module health (stub)`,
+        summary: `Documents module health`,
         responses: {
           '200': {
             description: `OK`,
@@ -833,11 +833,20 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
-    '/api/documents/upload-demo': {
+    '/api/documents/{applicationId}': {
       post: {
         tags: [`Documents`],
-        summary: `Multipart upload demo`,
-        description: `Smoke test for multer; max file size enforced by middleware (5MB).`,
+        summary: `Upload a document for an application`,
+        description: `Multipart upload (field **file**). Allowed only while the application is **DRAFT** or **PENDING_CLARIFICATION** and only for the owning applicant. Stored filename is a UUID under **uploads/**. An **audit_logs** row with **event_action** \`DOCUMENT_UPLOADED\` is written in the same database transaction as the **documents** row.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `applicationId`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -856,23 +865,99 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
         },
         responses: {
-          '200': {
-            description: `File stored under uploads/`,
+          '201': {
+            description: `Document persisted`,
             content: {
               'application/json': {
                 schema: {
                   type: `object`,
+                  required: [`success`, `data`],
                   properties: {
-                    ok: { type: `boolean` },
-                    storedAs: { type: `string`, nullable: true },
-                    note: { type: `string` },
+                    success: { type: `boolean`, example: true },
+                    data: {
+                      type: `object`,
+                      properties: {
+                        id: { type: `string`, format: `uuid` },
+                        application_id: { type: `string`, format: `uuid` },
+                        file_path: { type: `string` },
+                        original_name: { type: `string` },
+                        mime_type: { type: `string` },
+                        size_bytes: { type: `integer` },
+                      },
+                    },
                   },
                 },
               },
             },
           },
+          '400': {
+            description: `Validation error`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Not allowed (wrong user or application state)`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Application not found`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
           '413': {
             description: `File too large`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/documents/{id}/download': {
+      get: {
+        tags: [`Documents`],
+        summary: `Download a stored document`,
+        description: `Applicant may download documents tied to their applications; **REVIEWER** and **APPROVER** may download any stored document.`,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: `id`,
+            in: `path`,
+            required: true,
+            schema: { type: `string`, format: `uuid` },
+          },
+        ],
+        responses: {
+          '200': {
+            description: `File stream`,
+            content: {
+              'application/octet-stream': {
+                schema: { type: `string`, format: `binary` },
+              },
+            },
+          },
+          '403': {
+            description: `Not allowed`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '404': {
+            description: `Document not found`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },
