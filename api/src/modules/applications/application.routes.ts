@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { requireJwt } from '../../middleware/auth.middleware';
+import { requireJwt, requireStaffComplianceAuditAccess } from '../../middleware/auth.middleware';
 import {
   applicationDocumentsQuerySchema,
   applicationIdParamsSchema,
@@ -14,6 +14,7 @@ import { restrictToApprovePermissionWhenBodyTargetsApproved } from './applicatio
 import {
   createApplicationHandler,
   getApplicationByIdHandler,
+  listApplicationAuditLogsHandler,
   listApplicationDocumentsHandler,
   listApplicationsHandler,
   patchApplicationStatus,
@@ -29,6 +30,12 @@ router.use(requireJwt);
 
 router.get(`/`, listApplicationsHandler);
 router.post(`/`, createApplicationHandler);
+router.get(
+  `/:id/audit-logs`,
+  requireStaffComplianceAuditAccess,
+  validateParams(applicationIdParamsSchema),
+  listApplicationAuditLogsHandler
+);
 router.get(
   `/:id`,
   validateParams(applicationIdParamsSchema),

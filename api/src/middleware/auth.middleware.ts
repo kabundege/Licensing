@@ -136,6 +136,36 @@ export const optionalJwt: RequestHandler = (req, res, next): void => {
   void runOptionalJwt(req, res, next).catch(next);
 };
 
+export const requireStaffComplianceAuditAccess: RequestHandler = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  const caller = req.user;
+  const allowed =
+    caller?.roles.some(
+      (r) =>
+        r === RoleName.REVIEWER || r === RoleName.APPROVER || r === RoleName.ADMIN
+    ) ?? false;
+  if (!allowed) {
+    next(AppError.unauthorized(`Insufficient permissions`));
+    return;
+  }
+  next();
+};
+
+export const requireAdminRole: RequestHandler = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user?.roles.includes(RoleName.ADMIN)) {
+    next(AppError.unauthorized(`Insufficient permissions`));
+    return;
+  }
+  next();
+};
+
 export const restrictTo =
   (...required: AppPermission[]): RequestHandler =>
   (req: Request, _res: Response, next: NextFunction): void => {
