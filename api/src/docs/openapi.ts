@@ -5,6 +5,21 @@ import { ApplicationStatus } from '../modules/applications/entities';
 
 const applicationStatusEnum = Object.values(ApplicationStatus);
 
+const regulatorySummaryApplicationsByStatusRequired = [...applicationStatusEnum].sort(
+  (a, b) => String(a).localeCompare(String(b))
+);
+
+const regulatorySummaryApplicationsByStatusProperties = Object.fromEntries(
+  applicationStatusEnum.map((status) => [
+    status,
+    {
+      type: `integer`,
+      minimum: 0,
+      description: `Applications currently in **${status}**.`,
+    },
+  ])
+) as Record<string, OpenAPIV3.SchemaObject>;
+
 export const openApiDocument: OpenAPIV3.Document = {
   openapi: `3.0.3`,
   info: {
@@ -32,6 +47,10 @@ export const openApiDocument: OpenAPIV3.Document = {
     },
     { name: `Audit`, description: `Audit API — admin global audit search and module health` },
     { name: `Documents`, description: `Application document upload and secure download` },
+    {
+      name: `Executive Oversight Analytics`,
+      description: `Admin-only regulatory dashboard metrics — pipeline volumes, reviewer-cycle timing, and oldest in-flight applications.`,
+    },
   ],
   components: {
     securitySchemes: {
@@ -380,6 +399,89 @@ export const openApiDocument: OpenAPIV3.Document = {
             type: `array`,
             items: { $ref: `#/components/schemas/ApplicationDocumentRecord` },
           },
+        },
+      },
+      RegulatorySummaryApplicationsByStatus: {
+        type: `object`,
+        description: `Total applications per **ApplicationStatus** (dense map for charting).`,
+        required: regulatorySummaryApplicationsByStatusRequired,
+        properties: regulatorySummaryApplicationsByStatusProperties,
+      },
+      RegulatorySummaryUnderReviewMetrics: {
+        type: `object`,
+        required: [`averageDurationSeconds`, `completedCyclesCount`],
+        properties: {
+          averageDurationSeconds: {
+            type: `number`,
+            nullable: true,
+            description: `Mean duration in seconds of completed **UNDER_REVIEW** spells derived from **audit_logs** (each transition into UNDER_REVIEW through the next transition). \`null\` when no completed spells exist.`,
+          },
+          completedCyclesCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Number of completed UNDER_REVIEW spells used for the average.`,
+          },
+        },
+      },
+      RegulatorySummaryBottleneck: {
+        type: `object`,
+        required: [
+          `applicationId`,
+          `applicantId`,
+          `status`,
+          `firstAuditAt`,
+          `ageSeconds`,
+        ],
+        properties: {
+          applicationId: { type: `string`, format: `uuid` },
+          applicantId: { type: `string`, format: `uuid` },
+          status: { $ref: `#/components/schemas/ApplicationStatus` },
+          firstAuditAt: {
+            type: `string`,
+            format: `date-time`,
+            description: `Earliest **audit_logs.timestamp** for this application (proxy for intake / first movement).`,
+          },
+          ageSeconds: {
+            type: `integer`,
+            minimum: 0,
+            description: `Seconds from **firstAuditAt** to **asOf** on the parent payload.`,
+          },
+        },
+      },
+      RegulatorySummary: {
+        type: `object`,
+        required: [
+          `asOf`,
+          `applicationsByStatus`,
+          `underReview`,
+          `topPendingBottlenecks`,
+        ],
+        properties: {
+          asOf: {
+            type: `string`,
+            format: `date-time`,
+            description: `Snapshot timestamp for time-based fields in this response.`,
+          },
+          applicationsByStatus: {
+            $ref: `#/components/schemas/RegulatorySummaryApplicationsByStatus`,
+          },
+          underReview: {
+            $ref: `#/components/schemas/RegulatorySummaryUnderReviewMetrics`,
+          },
+          topPendingBottlenecks: {
+            type: `array`,
+            description: `Up to five oldest **SUBMITTED**, **UNDER_REVIEW**, **PENDING_CLARIFICATION**, or **FINAL_REVIEW** applications by earliest audit activity (pipeline bottleneck signal).`,
+            maxItems: 5,
+            items: { $ref: `#/components/schemas/RegulatorySummaryBottleneck` },
+          },
+        },
+      },
+      RegulatorySummaryResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/RegulatorySummary` },
         },
       },
     },
@@ -1076,6 +1178,32 @@ export const openApiDocument: OpenAPIV3.Document = {
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or caller is not ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/analytics/summary': {
+      get: {
+        tags: [`Executive Oversight Analytics`],
+        summary: `Regulatory summary dashboard`,
+        description: `**Executive Oversight Analytics** — **ADMIN** only. Aggregated licensing metrics for regulatory dashboards: totals by status, historical mean time in **UNDER_REVIEW** (from audit transitions), and the five oldest in-flight pipeline applications.`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Regulatory summary snapshot`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/RegulatorySummaryResponse` },
               },
             },
           },

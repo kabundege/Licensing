@@ -36,3 +36,17 @@ describe(`openApiDocument — Applications`, () => {
     );
   });
 });
+
+describe(`openApiDocument — Executive Oversight Analytics`, () => {
+  it(`documents regulatory summary route as admin-only dashboard`, () => {
+    const get = openApiDocument.paths?.[`/api/analytics/summary`]?.get;
+    expect(get).toBeDefined();
+    expect(get?.tags).toContain(`Executive Oversight Analytics`);
+    expect(get?.security).toEqual([{ bearerAuth: [] }]);
+    expect(get?.responses?.[`200`]).toBeDefined();
+    expect(get?.responses?.[`403`]).toBeDefined();
+    expect(
+      openApiDocument.components?.schemas?.RegulatorySummaryResponse
+    ).toBeDefined();
+  });
+});

@@ -6,6 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { openApiDocument } from './docs/openapi';
 import { errorHandler } from './middleware/error-handler.middleware';
+import { analyticsRouter } from './modules/analytics/analytics.routes';
 import { applicationRouter } from './modules/applications/application.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { authRouter } from './modules/auth/auth.routes';
@@ -61,6 +62,7 @@ export const createApp = (): express.Application => {
   );
 
   app.use(`/api/auth`, authRouter);
+  app.use(`/api/analytics`, analyticsRouter);
   app.use(`/api/audit`, auditRouter);
   app.use(`/api/documents`, documentsRouter);
   app.use(`/api/applications`, applicationRouter);
