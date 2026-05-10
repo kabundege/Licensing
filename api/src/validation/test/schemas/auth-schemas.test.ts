@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  adminUsersQuerySchema,
   createReviewerBodySchema,
   loginBodySchema,
+  promoteBodySchema,
   promoteParamsSchema,
   signupBodySchema,
 } from '../../schemas/index';
@@ -54,6 +56,37 @@ describe('promoteParamsSchema', () => {
     ).resolves.toMatchObject({
       userId: `550e8400-e29b-41d4-a716-446655440000`,
     });
+  });
+});
+
+describe('promoteBodySchema', () => {
+  it('allows REVIEWER or APPROVER', async () => {
+    await expect(promoteBodySchema.validate({ role: `REVIEWER` })).resolves.toEqual({
+      role: `REVIEWER`,
+    });
+    await expect(promoteBodySchema.validate({ role: `APPROVER` })).resolves.toEqual({
+      role: `APPROVER`,
+    });
+  });
+
+  it('rejects other role labels', async () => {
+    await expect(promoteBodySchema.validate({ role: `ADMIN` })).rejects.toThrow();
+  });
+});
+
+describe('adminUsersQuerySchema', () => {
+  it('applies defaults when query is empty', async () => {
+    const v = await adminUsersQuerySchema.validate({});
+    expect(v).toEqual({ page: 1, limit: 50 });
+  });
+
+  it('coerces numeric strings', async () => {
+    const v = await adminUsersQuerySchema.validate({ page: `2`, limit: `25` });
+    expect(v).toEqual({ page: 2, limit: 25 });
+  });
+
+  it('rejects limit over 100', async () => {
+    await expect(adminUsersQuerySchema.validate({ limit: 101 })).rejects.toThrow();
   });
 });
 

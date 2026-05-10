@@ -3,17 +3,16 @@ import jwt from 'jsonwebtoken';
 
 import type { LoadedAuthUser } from '../modules/auth/auth.types';
 import type { AppPermission } from '../modules/auth/app-permissions';
-import { User } from '../modules/auth/entities';
-import { permissionTokensFromPairs } from '../modules/auth/utils/permission-tokens';
+import { RoleName, User } from '../modules/auth/entities';
+import { permissionTokensFromRoles } from '../modules/auth/utils/permission-tokens';
 import { getJwtSigningSecret } from '../config/env';
 import { AppDataSource } from '../database/data-source';
 import { AppError } from '../shared/errors/AppError';
 
-/** Shape produced by `/api/auth/login` and verified by `requireJwt`. */
 export type AccessTokenJwtPayload = jwt.JwtPayload & {
   sub: string;
   email: string;
-  role: string;
+  roles: RoleName[];
   permissions: string[];
 };
 
@@ -30,11 +29,14 @@ declare global {
 
 const BEARER_PREFIX = /^Bearer\s+/i;
 
+const sortedRoles = (names: RoleName[]): RoleName[] =>
+  [...names].sort((a, b) => String(a).localeCompare(String(b)));
+
 const toLoadedAuthUser = (record: User): LoadedAuthUser => ({
   id: record.id,
   email: record.email,
-  role: record.role.name,
-  permissionTokens: permissionTokensFromPairs(record.role.permissions ?? []),
+  roles: sortedRoles(record.roles?.map((r) => r.name) ?? []),
+  permissions: permissionTokensFromRoles(record.roles ?? []),
 });
 
 const runRequireJwt = async (
@@ -75,7 +77,7 @@ const runRequireJwt = async (
     const userRepo = AppDataSource.getRepository(User);
     const record = await userRepo.findOne({
       where: { id: sub },
-      relations: { role: { permissions: true } },
+      relations: { roles: { permissions: true } },
     });
 
     if (!record) {
@@ -119,7 +121,7 @@ const runOptionalJwt = async (
     const userRepo = AppDataSource.getRepository(User);
     const record = await userRepo.findOne({
       where: { id: sub },
-      relations: { role: { permissions: true } },
+      relations: { roles: { permissions: true } },
     });
     if (record) {
       req.user = toLoadedAuthUser(record);
@@ -138,7 +140,7 @@ export const restrictTo =
   (...required: AppPermission[]): RequestHandler =>
   (req: Request, _res: Response, next: NextFunction): void => {
     const caller = req.user as LoadedAuthUser | undefined;
-    const tokens = caller?.permissionTokens;
+    const tokens = caller?.permissions;
     const allowed = tokens ? new Set(tokens) : undefined;
     if (!allowed) {
       next(AppError.unauthorized(`Insufficient permissions`));
