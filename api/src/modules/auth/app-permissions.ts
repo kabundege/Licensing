@@ -3,6 +3,11 @@ export const USERS_MANAGE_USERS = {
   action: `manage_users`,
 } as const;
 
+export const ANALYTICS_VIEW_DASHBOARD = {
+  resource: `analytics`,
+  action: `view_dashboard`,
+} as const;
+
 export const APPLICATION_APPROVE = {
   resource: `application`,
   action: `approve`,
@@ -41,6 +46,7 @@ export const APPLICATION_REJECT = {
 export const AppPermission = {
   ManageUsers: USERS_MANAGE_USERS.action,
   UsersManageUsers: `${USERS_MANAGE_USERS.resource}:${USERS_MANAGE_USERS.action}`,
+  ViewDashboardStats: `${ANALYTICS_VIEW_DASHBOARD.resource}:${ANALYTICS_VIEW_DASHBOARD.action}`,
   ApplicationApprove: APPLICATION_APPROVE.action,
   ApplicationApproveCompound: `${APPLICATION_APPROVE.resource}:${APPLICATION_APPROVE.action}`,
   ApplicationReject: APPLICATION_REJECT.action,

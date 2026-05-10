@@ -51,6 +51,10 @@ export const openApiDocument: OpenAPIV3.Document = {
       name: `Executive Oversight Analytics`,
       description: `Admin-only regulatory dashboard metrics — pipeline volumes, reviewer-cycle timing, and oldest in-flight applications.`,
     },
+    {
+      name: `Regulatory Oversight Dashboard`,
+      description: `Supervisor dashboard statistics for **ADMIN** and **APPROVER** principals with **analytics:view_dashboard** — status mix, reviewer workload, throughput timing, and security block events.`,
+    },
   ],
   components: {
     securitySchemes: {
@@ -482,6 +486,123 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           success: { type: `boolean`, example: true },
           data: { $ref: `#/components/schemas/RegulatorySummary` },
+        },
+      },
+      DashboardStatusDistribution: {
+        type: `object`,
+        required: [`labels`, `values`, `byStatus`],
+        description: `Chart-friendly series plus a dense map keyed by **ApplicationStatus**.`,
+        properties: {
+          labels: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/ApplicationStatus` },
+            description: `Status labels in enum order.`,
+          },
+          values: {
+            type: `array`,
+            items: { type: `integer`, minimum: 0 },
+            description: `Counts aligned with **labels**.`,
+          },
+          byStatus: {
+            $ref: `#/components/schemas/RegulatorySummaryApplicationsByStatus`,
+          },
+        },
+      },
+      DashboardReviewerWorkloadRow: {
+        type: `object`,
+        required: [`userId`, `name`, `email`, `assignedCount`],
+        properties: {
+          userId: { type: `string`, format: `uuid` },
+          name: { type: `string` },
+          email: { type: `string` },
+          assignedCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Applications with **reviewer_id** = this user (current assignments).`,
+          },
+        },
+      },
+      DashboardReviewerWorkload: {
+        type: `object`,
+        required: [`labels`, `values`, `reviewers`],
+        properties: {
+          labels: {
+            type: `array`,
+            items: { type: `string` },
+            description: `Reviewer **name** values, aligned with **values**.`,
+          },
+          values: {
+            type: `array`,
+            items: { type: `integer`, minimum: 0 },
+            description: `Assigned application counts per reviewer.`,
+          },
+          reviewers: {
+            type: `array`,
+            items: { $ref: `#/components/schemas/DashboardReviewerWorkloadRow` },
+          },
+        },
+      },
+      DashboardSubmittedToFinalReview: {
+        type: `object`,
+        required: [`averageHours`, `averageDays`, `sampleCount`],
+        properties: {
+          averageHours: {
+            type: `number`,
+            nullable: true,
+            description: `Mean hours between first **SUBMITTED** and first **FINAL_REVIEW** audit timestamps per application (\`null\` when no samples).`,
+          },
+          averageDays: {
+            type: `number`,
+            nullable: true,
+            description: `**averageHours / 24** for calendar-scale dashboards.`,
+          },
+          sampleCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `Applications that reached **FINAL_REVIEW** with a prior **SUBMITTED** audit row.`,
+          },
+        },
+      },
+      DashboardSecurityIntegrity: {
+        type: `object`,
+        required: [`blockedApprovalIdentityConflictCount`],
+        properties: {
+          blockedApprovalIdentityConflictCount: {
+            type: `integer`,
+            minimum: 0,
+            description: `**audit_logs** rows with **APPROVAL_BLOCKED_REVIEWER_IDENTITY** (blocked final decision: actor was the assigned reviewer).`,
+          },
+        },
+      },
+      DashboardGlobalStats: {
+        type: `object`,
+        required: [
+          `statusDistribution`,
+          `reviewerWorkload`,
+          `submittedToFinalReview`,
+          `securityIntegrity`,
+        ],
+        properties: {
+          statusDistribution: {
+            $ref: `#/components/schemas/DashboardStatusDistribution`,
+          },
+          reviewerWorkload: {
+            $ref: `#/components/schemas/DashboardReviewerWorkload`,
+          },
+          submittedToFinalReview: {
+            $ref: `#/components/schemas/DashboardSubmittedToFinalReview`,
+          },
+          securityIntegrity: {
+            $ref: `#/components/schemas/DashboardSecurityIntegrity`,
+          },
+        },
+      },
+      DashboardGlobalStatsResponse: {
+        type: `object`,
+        required: [`success`, `data`],
+        properties: {
+          success: { type: `boolean`, example: true },
+          data: { $ref: `#/components/schemas/DashboardGlobalStats` },
         },
       },
     },
@@ -1209,6 +1330,32 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
           '403': {
             description: `Missing or invalid token, or caller is not ADMIN`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/ErrorBody` },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/admin/dashboard-stats': {
+      get: {
+        tags: [`Regulatory Oversight Dashboard`],
+        summary: `Supervisor dashboard statistics`,
+        description: `**Regulatory Oversight Dashboard** — requires permission **analytics:view_dashboard** (seeded on **ADMIN** and **APPROVER** roles). Returns chart-oriented aggregates: application counts by status, per-reviewer assignment load, mean lag from **SUBMITTED** to **FINAL_REVIEW** from **audit_logs**, and count of blocked approvals where the actor matched the assigned reviewer (**APPROVAL_BLOCKED_REVIEWER_IDENTITY**).`,
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: `Dashboard aggregates`,
+            content: {
+              'application/json': {
+                schema: { $ref: `#/components/schemas/DashboardGlobalStatsResponse` },
+              },
+            },
+          },
+          '403': {
+            description: `Missing or invalid token, or missing **analytics:view_dashboard**`,
             content: {
               'application/json': {
                 schema: { $ref: `#/components/schemas/ErrorBody` },

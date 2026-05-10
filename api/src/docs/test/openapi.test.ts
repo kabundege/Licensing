@@ -50,3 +50,16 @@ describe(`openApiDocument — Executive Oversight Analytics`, () => {
     ).toBeDefined();
   });
 });
+
+describe(`openApiDocument — Regulatory Oversight Dashboard`, () => {
+  it(`documents supervisor dashboard-stats route`, () => {
+    const get = openApiDocument.paths?.[`/api/admin/dashboard-stats`]?.get;
+    expect(get).toBeDefined();
+    expect(get?.tags).toContain(`Regulatory Oversight Dashboard`);
+    expect(get?.security).toEqual([{ bearerAuth: [] }]);
+    expect(get?.responses?.[`200`]).toBeDefined();
+    expect(
+      openApiDocument.components?.schemas?.DashboardGlobalStatsResponse
+    ).toBeDefined();
+  });
+});

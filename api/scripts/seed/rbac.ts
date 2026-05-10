@@ -1,5 +1,6 @@
 import { AppDataSource } from '../../src/database/data-source';
 import {
+  ANALYTICS_VIEW_DASHBOARD,
   APPLICATION_APPROVE,
   APPLICATION_ESCALATE_FINAL,
   APPLICATION_REJECT,
@@ -22,6 +23,10 @@ export const seedPermissionsAndRoles = async (): Promise<Map<RoleName, Role>> =>
 
   const permissionPairs = [
     { resource: USERS_MANAGE_USERS.resource, action: USERS_MANAGE_USERS.action },
+    {
+      resource: ANALYTICS_VIEW_DASHBOARD.resource,
+      action: ANALYTICS_VIEW_DASHBOARD.action,
+    },
     { resource: APPLICATION_SUBMIT.resource, action: APPLICATION_SUBMIT.action },
     { resource: APPLICATION_START_REVIEW.resource, action: APPLICATION_START_REVIEW.action },
     {
@@ -64,9 +69,12 @@ export const seedPermissionsAndRoles = async (): Promise<Map<RoleName, Role>> =>
     },
     {
       name: RoleName.APPROVER,
-      permissionPairs: [APPLICATION_APPROVE, APPLICATION_REJECT],
+      permissionPairs: [APPLICATION_APPROVE, APPLICATION_REJECT, ANALYTICS_VIEW_DASHBOARD],
     },
-    { name: RoleName.ADMIN, permissionPairs: [USERS_MANAGE_USERS] },
+    {
+      name: RoleName.ADMIN,
+      permissionPairs: [USERS_MANAGE_USERS, ANALYTICS_VIEW_DASHBOARD],
+    },
   ];
 
   const rolesByName = new Map<RoleName, Role>();
