@@ -3,7 +3,7 @@ import type { RequestHandler } from 'express';
 
 import { uploadsRoot } from '../../middleware/file-size-limit.middleware';
 import { AppError } from '../../shared/errors/AppError';
-import { loadDocumentDownloadContext, persistUploadedDocument } from './documents.service';
+import { normalizeDocumentGroupKey, loadDocumentDownloadContext, persistUploadedDocument } from './documents.service';
 import { userMayDownloadApplicationDocument } from './documents.download-policy';
 
 export const uploadDocumentForApplication: RequestHandler = async (req, res, next) => {
@@ -18,10 +18,13 @@ export const uploadDocumentForApplication: RequestHandler = async (req, res, nex
       return;
     }
 
+    const groupKey = normalizeDocumentGroupKey(req.body?.group_key);
+
     const saved = await persistUploadedDocument({
       applicationId: req.params.applicationId!,
       uploadedByUserId: user.id,
       file: req.file,
+      groupKey,
     });
 
     res.status(201).json({
@@ -29,6 +32,9 @@ export const uploadDocumentForApplication: RequestHandler = async (req, res, nex
       data: {
         id: saved.id,
         application_id: saved.application_id,
+        group_key: saved.group_key,
+        version: saved.version,
+        is_current: saved.is_current,
         file_path: saved.file_path,
         original_name: saved.original_name,
         mime_type: saved.mime_type,
