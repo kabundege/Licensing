@@ -1,3 +1,5 @@
+export type { ApplicationDocumentsQueryDto } from './application-documents-query.schema';
+export { applicationDocumentsQuerySchema } from './application-documents-query.schema';
 export type { ApplicationDocumentParamsDto } from './application-document-params.schema';
 export { applicationDocumentParamsSchema } from './application-document-params.schema';
 export type { ApplicationIdParamsDto } from './application-id-params.schema';
