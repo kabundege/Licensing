@@ -107,9 +107,6 @@ export function ApplicationTrailPanel({
           <p className="mt-1 text-sm font-semibold text-foreground">
             {humanReadableAuditDescription(entry)}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Actor {entry.actor_id}
-          </p>
           {index === chronological.length - 1 ? (
             <span className="mt-2 inline-block text-[0.65rem] uppercase tracking-wider text-muted-foreground">
               Latest

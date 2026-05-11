@@ -123,19 +123,9 @@ export function ApplicationDocumentsPanel({
     const lines: ReactNode[] = [];
     lines.push(
       <p key="status">
-        This case is{' '}
-        <span className="font-medium text-foreground">
-          {applicationStatus.replaceAll(`_`, ` `).toLowerCase()}
-        </span>
-        . Only applicants may upload, and uploads are restricted to{' '}
-        <span className="font-medium text-foreground">
-          {ApplicationStatus.DRAFT.replaceAll(`_`, ` `).toLowerCase()}
-        </span>{' '}
-        /{' '}
-        <span className="font-medium text-foreground">
-          {ApplicationStatus.PENDING_CLARIFICATION.replaceAll(`_`, ` `).toLowerCase()}
-        </span>
-        .
+        Applicants can upload while the case is in{' '}
+        <span className="font-medium text-foreground">Draft</span> or{' '}
+        <span className="font-medium text-foreground">Pending clarification</span>.
       </p>,
     );
     if (
@@ -144,7 +134,7 @@ export function ApplicationDocumentsPanel({
     ) {
       lines.push(
         <p key="state" className="text-amber-900 dark:text-amber-200">
-          Versions are frozen for this workflow state.
+          Uploads are locked at this stage.
         </p>,
       );
     }
@@ -203,7 +193,7 @@ export function ApplicationDocumentsPanel({
               {uploadMutation.isPending ? `Uploading…` : `Choose file`}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Max ~5 MB · multipart POST to `/api/documents/[id]` as `file`.
+              Max 5 MB per file.
             </p>
           </div>
         </div>

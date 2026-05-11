@@ -17,16 +17,16 @@ router.get(`/health`, (_req, res) =>
 
 router.post(
   `/:applicationId`,
-  validateParams(applicationDocumentParamsSchema),
   requireJwt,
+  validateParams(applicationDocumentParamsSchema),
   uploadSingleFileMiddleware,
   uploadDocumentForApplication
 );
 
 router.get(
   `/:id/download`,
-  validateParams(documentDownloadParamsSchema),
   requireJwt,
+  validateParams(documentDownloadParamsSchema),
   downloadDocumentById
 );
 

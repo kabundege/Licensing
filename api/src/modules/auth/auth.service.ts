@@ -7,7 +7,6 @@ import { getJwtSigningSecret } from '../../config/env';
 import { AppDataSource } from '../../database/data-source';
 import { runInTransaction } from '../../database/transaction';
 import { AppError } from '../../shared/errors/AppError';
-import { AuditService } from '../audit/audit.service';
 import type {
   CreateReviewerBodyDto,
   LoginBodyDto,
@@ -158,13 +157,6 @@ export const addPromotionRoleToUser = async (params: {
     if (!hasRole) {
       record.roles = [...(record.roles ?? []), targetRoleEntity];
       await userRepository.save(record);
-
-      const auditService = new AuditService(manager);
-      await auditService.logPromotion({
-        promotedUserId: record.id,
-        performedByUserId: params.performedByUserId,
-        addedRole: params.roleName,
-      });
     }
 
     const hydrated = await userRepository.findOne({

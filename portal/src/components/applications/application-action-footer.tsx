@@ -14,13 +14,13 @@ import { ApplicationStatus } from "@/lib/application-domain";
 import {
   ACTION_LABEL_BY_TARGET,
   getRequiredPermissionForTransition,
-  getResubmitLabel,
+  RESUBMIT_LABEL,
   VALID_TRANSITIONS,
 } from "@/lib/application-transitions";
 import { actorHasPermissionPair } from "@/lib/permissions";
 
 const CONFLICT_OF_INTEREST_TOOLTIP =
-  `Regulatory segregation of duties: you were the assigned reviewer on this case. Approval must be performed by a different officer who did not conduct the substantive review.`;
+  `You reviewed this file, so approval must come from a different officer.`;
 
 export function ApplicationActionFooter({
   application,
@@ -48,7 +48,7 @@ export function ApplicationActionFooter({
       const label =
         application.status === ApplicationStatus.PENDING_CLARIFICATION &&
         target === ApplicationStatus.UNDER_REVIEW
-          ? getResubmitLabel()
+          ? RESUBMIT_LABEL
           : (ACTION_LABEL_BY_TARGET[target] ?? `Move to ${target}`);
       const isApprove = target === ApplicationStatus.APPROVED;
       const conflictOfInterestLocked =
@@ -87,13 +87,10 @@ export function ApplicationActionFooter({
             aria-live="polite"
             className="rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-50"
           >
-            <p className="font-semibold">Conflict of interest guard</p>
+            <p className="font-semibold">Approval blocked</p>
             <p className="mt-1 text-amber-950/90 dark:text-amber-100">
-              Your account matches the assigned reviewer (
-              <span className="font-mono">{application.reviewer_id}</span>
-              ). Approve is disabled under regulatory segregation-of-duties rules —
-              final sign-off must come from an officer who did not conduct the substantive
-              review on this file.
+              You are the assigned reviewer on this file. A different officer
+              must sign off on the final decision.
             </p>
           </div>
         ) : null}

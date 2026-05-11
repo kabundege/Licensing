@@ -32,13 +32,13 @@ export default auth((req) => {
   }
 
   if (pathname.startsWith(`/dashboard/staff`)) {
-    if (!actorHasAnyToken(perms, [...MIDDLEWARE_RULES.staffArea])) {
+    if (!actorHasAnyToken(perms, MIDDLEWARE_RULES.staffArea)) {
       return NextResponse.redirect(new URL(`/dashboard`, req.url));
     }
   }
 
   if (pathname.startsWith(`/dashboard/admin`)) {
-    if (!actorHasAnyToken(perms, [...MIDDLEWARE_RULES.adminArea])) {
+    if (!actorHasAnyToken(perms, MIDDLEWARE_RULES.adminArea)) {
       return NextResponse.redirect(new URL(`/dashboard`, req.url));
     }
   }

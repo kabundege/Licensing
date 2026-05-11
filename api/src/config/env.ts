@@ -19,7 +19,6 @@ export const assertEnvForRuntime = (): void => {
   }
 };
 
-/** Secret used by JWT middleware — `.env` supplies this; dev fallback avoids misconfigured empty secrets locally. */
 export const getJwtSigningSecret = (): string => {
   if (env.jwtSecret) return env.jwtSecret;
   if (env.nodeEnv !== 'production') {

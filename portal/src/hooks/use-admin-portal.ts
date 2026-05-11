@@ -1,6 +1,5 @@
 "use client";
 
-import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -43,7 +42,7 @@ export const useRegulatorySummaryQuery = () => {
   });
 };
 
-export const auditLogsSignature = (query: AdminAuditLogsQuery): string =>
+const auditLogsSignature = (query: AdminAuditLogsQuery): string =>
   JSON.stringify({
     applicant_id: query.applicant_id ?? ``,
     reviewer_id: query.reviewer_id ?? ``,
@@ -92,20 +91,6 @@ export const usePromoteUserMutation = () => {
       await queryClient.invalidateQueries({ queryKey: adminPortalKeys.all });
       toast.success(`Role updated.`);
     },
-    onError: (err: unknown) => {
-      const message =
-        isAxiosError(err) &&
-        err.response?.data &&
-        typeof err.response.data === `object` &&
-        err.response.data !== null &&
-        `message` in err.response.data &&
-        typeof (err.response.data as { message: unknown }).message === `string`
-          ? (err.response.data as { message: string }).message
-          : err instanceof Error
-            ? err.message
-            : `Promotion failed.`;
-      toast.error(message);
-    },
   });
 };
 
@@ -117,20 +102,6 @@ export const useCreateReviewerMutation = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminPortalKeys.all });
       toast.success(`Reviewer account created.`);
-    },
-    onError: (err: unknown) => {
-      const message =
-        isAxiosError(err) &&
-        err.response?.data &&
-        typeof err.response.data === `object` &&
-        err.response.data !== null &&
-        `message` in err.response.data &&
-        typeof (err.response.data as { message: unknown }).message === `string`
-          ? (err.response.data as { message: string }).message
-          : err instanceof Error
-            ? err.message
-            : `Could not create reviewer.`;
-      toast.error(message);
     },
   });
 };

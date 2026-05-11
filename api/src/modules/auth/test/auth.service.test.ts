@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => {
   const txRoleRepo = {
     findOne: vi.fn(),
   };
-  const logPromotion = vi.fn().mockResolvedValue(undefined);
 
   const transactionalManagerStub = {
     getRepository(entity: typeof User | typeof Role) {
@@ -44,10 +43,6 @@ const mocks = vi.hoisted(() => {
     runInTransaction: vi.fn(async (_ds: unknown, fn: (m: typeof transactionalManagerStub) => Promise<unknown>) =>
       fn(transactionalManagerStub)
     ),
-    AuditService: vi.fn(function () {
-      return { logPromotion };
-    }),
-    logPromotion,
   };
 });
 
@@ -58,10 +53,6 @@ vi.mock(`../../../repository`, () => ({
 
 vi.mock(`../../../database/transaction`, () => ({
   runInTransaction: mocks.runInTransaction,
-}));
-
-vi.mock(`../../audit/audit.service`, () => ({
-  AuditService: mocks.AuditService,
 }));
 
 vi.mock(`../../../config/env`, async (importOriginal) => {
@@ -221,7 +212,7 @@ describe(`auth.service`, () => {
   });
 
   describe(`addPromotionRoleToUser`, () => {
-    it(`runs in transaction and logs audit when reviewer added`, async () => {
+    it(`runs in transaction and persists the new role`, async () => {
       const reviewerRole = {
         id: `rv`,
         name: RoleName.REVIEWER,
@@ -252,14 +243,9 @@ describe(`auth.service`, () => {
       expect(out.roles.some((r) => r.name === RoleName.REVIEWER)).toBe(true);
       expect(mocks.txUserRepo.save).toHaveBeenCalled();
       expect(mocks.runInTransaction).toHaveBeenCalled();
-      expect(mocks.logPromotion).toHaveBeenCalledWith({
-        promotedUserId: `target`,
-        performedByUserId: `admin`,
-        addedRole: RoleName.REVIEWER,
-      });
     });
 
-    it(`skips audit when role already assigned`, async () => {
+    it(`skips the save when role is already assigned`, async () => {
       const reviewerRole = {
         id: `rv`,
         name: RoleName.REVIEWER,
@@ -285,7 +271,6 @@ describe(`auth.service`, () => {
       });
 
       expect(mocks.txUserRepo.save).not.toHaveBeenCalled();
-      expect(mocks.logPromotion).not.toHaveBeenCalled();
     });
   });
 });

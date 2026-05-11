@@ -122,8 +122,8 @@ export function ApplicationDetailClient() {
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {staffAudit
-                ? `Staff compliance view from licensing audit logs for this application.`
-                : `Events visible from your permitted access.`}
+                ? `Compliance view of every action recorded against this case.`
+                : `Events visible on this case.`}
             </p>
             <div className="mt-4 min-h-[12rem] border-t border-border pt-4 lg:border-border">
               <ApplicationTrailPanel
@@ -148,9 +148,8 @@ export function ApplicationDetailClient() {
                 Form data
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Submitted licensing fields for this case will appear here when
-                exposed by the API. Until then, core record identifiers are shown
-                below.
+                Submitted licensing fields will appear here once the intake form
+                is wired up. For now, core record identifiers are shown below.
               </p>
               <dl className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
                 <div>

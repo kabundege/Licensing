@@ -43,26 +43,26 @@ router.post(
 
 router.get(
   `/admin/users`,
-  validateQuery(adminUsersQuerySchema),
   requireJwt,
   restrictTo(AppPermission.ManageUsers),
+  validateQuery(adminUsersQuerySchema),
   listUsers,
 );
 
 router.patch(
   `/admin/promote/:userId`,
-  validateParams(promoteParamsSchema),
-  validateBody(promoteBodySchema),
   requireJwt,
   restrictTo(AppPermission.ManageUsers),
+  validateParams(promoteParamsSchema),
+  validateBody(promoteBodySchema),
   promoteUser,
 );
 
 router.post(
   `/admin/create-reviewer`,
-  validateBody(createReviewerBodySchema),
   requireJwt,
   restrictTo(AppPermission.ManageUsers),
+  validateBody(createReviewerBodySchema),
   createReviewer,
 );
 

@@ -105,7 +105,7 @@ export const ACTION_LABEL_BY_TARGET: Partial<
   [ApplicationStatus.REJECTED]: `Reject`,
 };
 
-export const getResubmitLabel = (): string => `Resubmit`;
+export const RESUBMIT_LABEL = `Resubmit`;
 
 export const getRequiredPermissionForTransition = (
   from: ApplicationStatus,

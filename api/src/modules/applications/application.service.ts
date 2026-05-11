@@ -125,6 +125,12 @@ const assertSeparationForFinalDecision = (
   }
 };
 
+const logDev = (label: string, err: unknown): void => {
+  if (env.nodeEnv === `development`) {
+    console.error(label, err);
+  }
+};
+
 const recordSeparationBlockAuditIfApplicable = async (
   applicationId: string,
   actor: LoadedAuthUser,
@@ -226,17 +232,10 @@ export const transitionStatus = async (
           targetStatus
         );
       } catch (auditErr) {
-        if (env.nodeEnv === `development`) {
-          console.error(
-            `[ApplicationService.transitionStatus] separation block audit`,
-            auditErr
-          );
-        }
+        logDev(`[ApplicationService.transitionStatus] separation block audit`, auditErr);
       }
     }
-    if (env.nodeEnv === `development`) {
-      console.error(`[ApplicationService.transitionStatus]`, err);
-    }
+    logDev(`[ApplicationService.transitionStatus]`, err);
     throw err;
   }
 };
