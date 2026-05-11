@@ -17,6 +17,12 @@ const routes = {
     isProtected: true,
     isDefaultPath: false,
   },
+  applications: {
+    url: `/dashboard/applications`,
+    label: `Applications`,
+    isProtected: true,
+    isDefaultPath: false,
+  },
   newApplication: {
     url: `/dashboard/applications/new`,
     label: `New Application`,

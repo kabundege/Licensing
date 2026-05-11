@@ -2,6 +2,7 @@
 
 import {
   ClipboardList,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Shield,
@@ -28,6 +29,12 @@ const navItems: NavItem[] = [
     href: routes.dashboard.url,
     label: routes.dashboard.label,
     icon: LayoutDashboard,
+    match: [],
+  },
+  {
+    href: routes.applications.url,
+    label: routes.applications.label,
+    icon: FolderKanban,
     match: [],
   },
   {
