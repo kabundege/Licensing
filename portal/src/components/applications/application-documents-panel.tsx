@@ -1,13 +1,16 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import type { ReactNode } from "react";
 import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUploadApplicationDocumentMutation } from "@/hooks/use-applications";
 import type { DocumentDto } from "@/lib/api/applications-types";
+import { downloadApplicationDocument } from "@/lib/api/documents-api";
 import { ApplicationStatus } from "@/lib/application-domain";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +26,7 @@ export function ApplicationDocumentsPanel({
   applicantId,
   sessionUserId,
   mayUploadNextVersion,
+  mayDownloadDocuments,
   documents,
   isLoading,
   errorMessage,
@@ -32,6 +36,7 @@ export function ApplicationDocumentsPanel({
   applicantId: string;
   sessionUserId: string | undefined;
   mayUploadNextVersion: boolean;
+  mayDownloadDocuments: boolean;
   documents: DocumentDto[] | undefined;
   isLoading: boolean;
   errorMessage?: string;
@@ -39,6 +44,7 @@ export function ApplicationDocumentsPanel({
   const uploadMutation = useUploadApplicationDocumentMutation(applicationId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [draftGroupKey, setDraftGroupKey] = useState(``);
+  const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
 
   const inputId = useId();
   const groupKeyInputId = useId();
@@ -61,6 +67,37 @@ export function ApplicationDocumentsPanel({
   }, [documents]);
 
   const onPickFile = useCallback(() => fileInputRef.current?.click(), []);
+
+  const onDownload = useCallback(
+    async (doc: DocumentDto) => {
+      if (!mayDownloadDocuments || downloadBusyId !== null) {
+        return;
+      }
+      try {
+        setDownloadBusyId(doc.id);
+        await downloadApplicationDocument({
+          documentId: doc.id,
+          suggestedName: doc.original_name,
+        });
+      } catch (err) {
+        const message =
+          isAxiosError(err) &&
+          err.response?.data &&
+          typeof err.response.data === `object` &&
+          err.response.data !== null &&
+          `message` in err.response.data &&
+          typeof (err.response.data as { message: unknown }).message === `string`
+            ? (err.response.data as { message: string }).message
+            : err instanceof Error
+              ? err.message
+              : `Download failed.`;
+        toast.error(message);
+      } finally {
+        setDownloadBusyId(null);
+      }
+    },
+    [downloadBusyId, mayDownloadDocuments],
+  );
 
   const submitFile = useCallback(
     async (files: FileList | null) => {
@@ -249,6 +286,18 @@ export function ApplicationDocumentsPanel({
                           <span className="w-full shrink-0 text-xs text-muted-foreground sm:w-auto">
                             {formatBytes(d.size_bytes)} · {d.mime_type}
                           </span>
+                          {mayDownloadDocuments ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              className="shrink-0"
+                              disabled={downloadBusyId === d.id}
+                              onClick={() => void onDownload(d)}
+                            >
+                              {downloadBusyId === d.id ? `Downloading…` : `Download`}
+                            </Button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -283,6 +332,18 @@ export function ApplicationDocumentsPanel({
                             <span className="text-xs">
                               v{d.version} · {formatBytes(d.size_bytes)}
                             </span>
+                            {mayDownloadDocuments ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                className="shrink-0 text-foreground"
+                                disabled={downloadBusyId === d.id}
+                                onClick={() => void onDownload(d)}
+                              >
+                                {downloadBusyId === d.id ? `…` : `Download`}
+                              </Button>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
