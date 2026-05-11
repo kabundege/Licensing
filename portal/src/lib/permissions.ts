@@ -32,12 +32,22 @@ export const actorHasPermissionPair = (
 export const NAV_PERMISSIONS = {
   newApplication: [`application:create`, `application:submit`],
   staffReviewQueue: [`application:review`, `application:start_review`],
+  /** Matches `/api/auth/admin/*` — JWT exposes `manage_users` and compound `users:manage_users`. */
   adminDashboard: [`manage_users`, `users:manage_users`],
+  /** Matches `/api/admin/dashboard-stats` — seeded as `analytics:view_dashboard` (+ bare `view_dashboard`). */
+  viewDashboardStats: [`analytics:view_dashboard`, `view_dashboard`],
+  /** Anyone who may enter `/dashboard/admin` (user tools and/or operational metrics). */
+  adminPortalAccess: [
+    `manage_users`,
+    `users:manage_users`,
+    `analytics:view_dashboard`,
+    `view_dashboard`,
+  ],
 } as const;
 
 export const MIDDLEWARE_RULES = {
   staffArea: NAV_PERMISSIONS.staffReviewQueue,
-  adminArea: NAV_PERMISSIONS.adminDashboard,
+  adminArea: NAV_PERMISSIONS.adminPortalAccess,
 } as const;
 
 /** Staff may take ownership of SUBMITTED cases (API uses `application:start_review`; JWT may expose `application:review`). */
@@ -48,6 +58,22 @@ export const userMayClaimSubmittedApplication = (
   actorHasPermissionPair(tokens, `application`, `start_review`);
 
 /** Row-level quick action: open case detail (applicant on file or staff queue role). */
+/** Mirrors API document download policy (applicant on file, or reviewer / approver). */
+export const userMayDownloadCaseDocuments = ({
+  sessionUserId,
+  applicantId,
+  roles,
+}: {
+  sessionUserId: string | undefined;
+  applicantId: string;
+  roles: string[] | undefined;
+}): boolean => {
+  if (typeof sessionUserId === `string` && sessionUserId === applicantId) {
+    return true;
+  }
+  return (roles ?? []).some((r) => r === `REVIEWER` || r === `APPROVER`);
+};
+
 export const userMayViewApplicationCase = ({
   sessionUserId,
   applicantId,
