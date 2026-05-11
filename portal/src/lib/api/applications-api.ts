@@ -8,6 +8,11 @@ import type {
   TransitionBody,
 } from "@/lib/api/applications-types";
 
+export const createApplication = async (): Promise<ApplicationDto> => {
+  const res = await api.post<ApiListResponse<ApplicationDto>>(`/api/applications`, {});
+  return res.data.data;
+};
+
 export const fetchApplications = async (): Promise<ApplicationDto[]> => {
   const res = await api.get<ApiListResponse<ApplicationDto[]>>(`/api/applications`);
   return res.data.data;
