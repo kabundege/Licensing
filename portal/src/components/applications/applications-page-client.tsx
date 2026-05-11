@@ -68,8 +68,8 @@ export function ApplicationsPageClient(props: ApplicationsPageClientProps = {}) 
   const mayClaim = userMayClaimSubmittedApplication(tokens);
 
   const defaultDescription = staffQueue
-    ? `Review queue — all applications in the system.`
-    : `Your submitted applications. The list is scoped to your account by the API.`;
+    ? `Review queue. Every application in the system is listed here.`
+    : `Applications you have created. Pick one to view its file.`;
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
 

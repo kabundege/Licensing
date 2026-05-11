@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/table";
 import routes from "@/constants/routeNames";
 import {
-  auditLogsSignature,
   useAdminAuditLogsQuery,
   useAdminUsersQuery,
   useCreateReviewerMutation,
@@ -93,8 +92,8 @@ export function AdminDashboardClient() {
   const roles = session?.user?.roles ?? [];
   const isAdminRole = roles.includes(`ADMIN`);
 
-  const mayManageUsers = actorHasAnyToken(tokens, [...NAV_PERMISSIONS.adminDashboard]);
-  const mayViewMetrics = actorHasAnyToken(tokens, [...NAV_PERMISSIONS.viewDashboardStats]);
+  const mayManageUsers = actorHasAnyToken(tokens, NAV_PERMISSIONS.adminDashboard);
+  const mayViewMetrics = actorHasAnyToken(tokens, NAV_PERMISSIONS.viewDashboardStats);
 
   const defaultTab = useMemo(() => {
     if (mayManageUsers) return `users`;
@@ -112,33 +111,28 @@ export function AdminDashboardClient() {
           Administration & insights
         </h1>
         <p className="text-sm text-muted-foreground">
-          Sections reflect backend authorization — user tools require{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">
-            manage_users
-          </code>
-          , operational metrics require dashboard analytics permission, and regulatory exports require the{" "}
-          <span className="font-medium text-foreground">ADMIN</span> role.
+          Tabs appear based on your role.
         </p>
       </header>
 
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="flex flex-wrap gap-1">
-          <PermissionGuardClient anyOf={[...NAV_PERMISSIONS.adminDashboard]} fallback={null}>
+          <PermissionGuardClient anyOf={NAV_PERMISSIONS.adminDashboard} fallback={null}>
             <TabsTrigger value="users">Users</TabsTrigger>
           </PermissionGuardClient>
-          <PermissionGuardClient anyOf={[...NAV_PERMISSIONS.viewDashboardStats]} fallback={null}>
+          <PermissionGuardClient anyOf={NAV_PERMISSIONS.viewDashboardStats} fallback={null}>
             <TabsTrigger value="metrics">Operational metrics</TabsTrigger>
           </PermissionGuardClient>
           {isAdminRole ? <TabsTrigger value="oversight">Regulatory oversight</TabsTrigger> : null}
         </TabsList>
 
-        <PermissionGuardClient anyOf={[...NAV_PERMISSIONS.adminDashboard]} fallback={null}>
+        <PermissionGuardClient anyOf={NAV_PERMISSIONS.adminDashboard} fallback={null}>
           <TabsContent value="users" className="space-y-6 pt-4">
             <AdminUsersTab page={usersPage} onPageChange={setUsersPage} />
           </TabsContent>
         </PermissionGuardClient>
 
-        <PermissionGuardClient anyOf={[...NAV_PERMISSIONS.viewDashboardStats]} fallback={null}>
+        <PermissionGuardClient anyOf={NAV_PERMISSIONS.viewDashboardStats} fallback={null}>
           <TabsContent value="metrics" className="space-y-6 pt-4">
             <AdminMetricsTab />
           </TabsContent>
@@ -431,7 +425,18 @@ function AdminUsersTab({
                               if (selected !== `REVIEWER` && selected !== `APPROVER`) {
                                 return;
                               }
-                              promote.mutate({ userId: user.id, role: selected });
+                              promote.mutate(
+                                { userId: user.id, role: selected },
+                                {
+                                  onSuccess: () => {
+                                    setPromotionTargets((prev) => {
+                                      const next = { ...prev };
+                                      delete next[user.id];
+                                      return next;
+                                    });
+                                  },
+                                },
+                              );
                             }}
                           >
                             Apply
@@ -450,11 +455,8 @@ function AdminUsersTab({
       <Card className="border-border p-5">
         <h2 className="text-sm font-semibold text-foreground">Create reviewer account</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Calls{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
-            POST /api/auth/admin/create-reviewer
-          </code>
-          {" "}with the same validation rules as public signup.
+          New reviewers sign in with the credentials you set here and can rotate their
+          password later.
         </p>
         <Formik<RegisterBodyDto>
           initialValues={{ name: ``, email: ``, password: `` }}
@@ -548,8 +550,6 @@ function AdminRegulatoryTab() {
     null,
   );
 
-  const auditSig =
-    appliedAuditQuery !== null ? auditLogsSignature(appliedAuditQuery) : `pending`;
   const auditQuery = useAdminAuditLogsQuery(
     appliedAuditQuery ?? { limit: 500 },
     appliedAuditQuery !== null,
@@ -591,11 +591,7 @@ function AdminRegulatoryTab() {
       <Card className="border-border p-5">
         <h2 className="text-sm font-semibold text-foreground">Regulatory snapshot</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Pulled from{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
-            GET /api/analytics/summary
-          </code>
-          {" "}— administrator role only on the API.
+          Aggregated view of pipeline health for compliance reporting.
         </p>
 
         {summaryQuery.isLoading ? (
@@ -727,11 +723,7 @@ function AdminRegulatoryTab() {
       <Card className="border-border p-5">
         <h2 className="text-sm font-semibold text-foreground">Cross-application audit search</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Backed by{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
-            GET /api/audit/logs
-          </code>
-          . Leave filters blank to pull the latest events up to the configured limit.
+          Leave filters blank to pull the most recent events up to the configured limit.
         </p>
 
         <div className="mt-4 grid gap-4 border-t border-border pt-4 md:grid-cols-2">
@@ -795,10 +787,11 @@ function AdminRegulatoryTab() {
           <Button type="button" size="sm" variant="secondary" onClick={applyAuditFilters}>
             Apply filters
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Query signature:{" "}
-            <span className="font-mono text-[11px] text-foreground">{auditSig}</span>
-          </p>
+          {appliedAuditQuery !== null && !auditQuery.isLoading && !auditQuery.isError ? (
+            <p className="text-xs text-muted-foreground">
+              {auditQuery.data?.length ?? 0} entries shown.
+            </p>
+          ) : null}
         </div>
 
         {appliedAuditQuery === null ? (

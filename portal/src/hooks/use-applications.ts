@@ -1,8 +1,6 @@
 "use client";
 
-import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import {
   createApplication,
@@ -164,7 +162,7 @@ export const useApplicationTransitionMutation = () => {
 
       return { previousList, previousDetail };
     },
-    onError: (err: unknown, variables, context) => {
+    onError: (_err, variables, context) => {
       if (context?.previousList) {
         queryClient.setQueryData(applicationKeys.list(), context.previousList);
       }
@@ -177,18 +175,6 @@ export const useApplicationTransitionMutation = () => {
           context.previousDetail,
         );
       }
-      const message =
-        isAxiosError(err) &&
-        err.response?.data &&
-        typeof err.response.data === `object` &&
-        err.response.data !== null &&
-        `message` in err.response.data &&
-        typeof (err.response.data as { message: unknown }).message === `string`
-          ? (err.response.data as { message: string }).message
-          : err instanceof Error
-            ? err.message
-            : `Status could not be updated.`;
-      toast.error(message);
     },
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: applicationKeys.list() });
@@ -250,20 +236,6 @@ export const useUploadApplicationDocumentMutation = (applicationId: string) => {
         }),
       ]);
     },
-    onError: (err: unknown) => {
-      const message =
-        isAxiosError(err) &&
-        err.response?.data &&
-        typeof err.response.data === `object` &&
-        err.response.data !== null &&
-        `message` in err.response.data &&
-        typeof (err.response.data as { message: unknown }).message === `string`
-          ? (err.response.data as { message: string }).message
-          : err instanceof Error
-            ? err.message
-            : `Upload failed.`;
-      toast.error(message);
-    },
   });
 };
 
@@ -273,20 +245,6 @@ export const useCreateApplicationMutation = () => {
     mutationFn: createApplication,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: applicationKeys.list() });
-    },
-    onError: (err: unknown) => {
-      const message =
-        isAxiosError(err) &&
-        err.response?.data &&
-        typeof err.response.data === `object` &&
-        err.response.data !== null &&
-        `message` in err.response.data &&
-        typeof (err.response.data as { message: unknown }).message === `string`
-          ? (err.response.data as { message: string }).message
-          : err instanceof Error
-            ? err.message
-            : `Could not create application.`;
-      toast.error(message);
     },
   });
 };

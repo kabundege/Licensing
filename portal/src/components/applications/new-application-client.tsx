@@ -23,11 +23,11 @@ export function NewApplicationClient() {
   const onCreate = async () => {
     try {
       const app = await createMutation.mutateAsync();
-      toast.success(`Draft created — you can add documents before submitting.`);
+      toast.success(`Draft created. You can add documents before submitting.`);
       router.push(`${routes.applications.url}/${app.id}`);
       router.refresh();
     } catch {
-      /* toast handled in mutation */
+      // Error toast surfaced by the global mutation cache handler.
     }
   };
 
@@ -48,12 +48,8 @@ export function NewApplicationClient() {
         <CardHeader>
           <CardTitle>Create draft</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Calls{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">
-              POST /api/applications
-            </code>
-            {" "}— no intake payload yet; the API binds the record to your signed-in
-            account.
+            The new case is created under your account. You can attach
+            documents and submit once the file is ready.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">

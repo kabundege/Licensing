@@ -19,7 +19,6 @@ export const actorHasAllTokens = (
   return required.every((c) => s.has(c));
 };
 
-/** Matches API `actorHasPermissionPair` — JWT may include `resource:action` or `action` only. */
 export const actorHasPermissionPair = (
   tokens: string[] | undefined,
   resource: string,
@@ -30,13 +29,10 @@ export const actorHasPermissionPair = (
 };
 
 export const NAV_PERMISSIONS = {
-  newApplication: [`application:create`, `application:submit`],
+  newApplication: [`application:submit`],
   staffReviewQueue: [`application:review`, `application:start_review`],
-  /** Matches `/api/auth/admin/*` — JWT exposes `manage_users` and compound `users:manage_users`. */
   adminDashboard: [`manage_users`, `users:manage_users`],
-  /** Matches `/api/admin/dashboard-stats` — seeded as `analytics:view_dashboard` (+ bare `view_dashboard`). */
   viewDashboardStats: [`analytics:view_dashboard`, `view_dashboard`],
-  /** Anyone who may enter `/dashboard/admin` (user tools and/or operational metrics). */
   adminPortalAccess: [
     `manage_users`,
     `users:manage_users`,
@@ -50,15 +46,12 @@ export const MIDDLEWARE_RULES = {
   adminArea: NAV_PERMISSIONS.adminPortalAccess,
 } as const;
 
-/** Staff may take ownership of SUBMITTED cases (API uses `application:start_review`; JWT may expose `application:review`). */
 export const userMayClaimSubmittedApplication = (
   tokens: string[] | undefined,
 ): boolean =>
   actorHasPermissionPair(tokens, `application`, `review`) ||
   actorHasPermissionPair(tokens, `application`, `start_review`);
 
-/** Row-level quick action: open case detail (applicant on file or staff queue role). */
-/** Mirrors API document download policy (applicant on file, or reviewer / approver). */
 export const userMayDownloadCaseDocuments = ({
   sessionUserId,
   applicantId,
