@@ -1,4 +1,4 @@
-# Bank Licensing & Compliance Portal
+# Bank Licensing & Compliance Portal (Design Document)
 
 ## Overview
 
