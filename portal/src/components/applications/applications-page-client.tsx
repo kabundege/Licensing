@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { ApplicationStatusBadge } from "@/components/applications/application-status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
   userSeesGlobalApplicationQueue,
 } from "@/lib/application-domain";
 import { userMayClaimSubmittedApplication } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 
 const STATUS_FILTER_OPTIONS: Array<ApplicationStatus | `ALL`> = [
@@ -148,11 +149,9 @@ export function ApplicationsPageClient() {
                   <th className="px-4 py-3 font-medium text-muted-foreground">
                     Version
                   </th>
-                  {staffQueue && mayClaim ? (
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                      Quick actions
-                    </th>
-                  ) : null}
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                    Quick actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -166,13 +165,11 @@ export function ApplicationsPageClient() {
                       key={row.id}
                       className="border-b border-border transition-colors hover:bg-muted/25"
                     >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`${routes.applications.url}/${row.id}`}
-                          className="font-medium text-primary underline-offset-2 hover:underline"
-                        >
-                          {row.id.slice(0, 8)}…
-                        </Link>
+                      <td
+                        className="px-4 py-3 font-mono text-xs text-foreground"
+                        title={row.id}
+                      >
+                        {row.id.slice(0, 8)}…
                       </td>
                       <td className="px-4 py-3">
                         <ApplicationStatusBadge status={row.status} />
@@ -185,8 +182,14 @@ export function ApplicationsPageClient() {
                       <td className="px-4 py-3 text-muted-foreground">
                         {row.version}
                       </td>
-                      {staffQueue && mayClaim ? (
-                        <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <Link
+                            href={`${routes.applications.url}/${row.id}`}
+                            className={cn(buttonVariants({ variant: `outline`, size: `xs` }))}
+                          >
+                            View
+                          </Link>
                           {showClaim ? (
                             <Button
                               type="button"
@@ -197,7 +200,8 @@ export function ApplicationsPageClient() {
                                 transition.mutate({
                                   applicationId: row.id,
                                   body: {
-                                    targetStatus: ApplicationStatus.UNDER_REVIEW,
+                                    targetStatus:
+                                      ApplicationStatus.UNDER_REVIEW,
                                     expectedVersion: row.version,
                                   },
                                 })
@@ -205,11 +209,9 @@ export function ApplicationsPageClient() {
                             >
                               Claim
                             </Button>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      ) : null}
+                          ) : null}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

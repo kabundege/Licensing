@@ -100,90 +100,97 @@ export function ApplicationDetailClient() {
           </div>
         </header>
 
-        {/* 1 · Metadata summary */}
-        <section
-          aria-labelledby="metadata-summary-heading"
-          className="rounded-xl border border-border bg-card p-5 shadow-none"
-        >
-          <h2
-            id="metadata-summary-heading"
-            className="text-sm font-semibold text-foreground"
-          >
-            Metadata summary
-          </h2>
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Applicant ID
-              </dt>
-              <dd className="mt-0.5 font-mono text-sm text-foreground">
-                {app.applicant_id}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Record version
-              </dt>
-              <dd className="mt-0.5 text-sm text-foreground">{app.version}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Reviewer
-              </dt>
-              <dd className="mt-0.5 font-mono text-sm text-foreground">
-                {app.reviewer_id ?? `—`}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Approver
-              </dt>
-              <dd className="mt-0.5 font-mono text-sm text-foreground">
-                {app.approver_id ?? `—`}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        {/* 2 & 3 · Documents + Compliance audit */}
-        <div className="grid flex-1 gap-8 lg:grid-cols-2 lg:gap-10">
-          <section
-            aria-labelledby="documents-heading"
-            className="flex min-h-0 flex-col rounded-xl border border-border bg-card p-5 shadow-none"
-          >
-            <h2
-              id="documents-heading"
-              className="text-sm font-semibold text-foreground"
+        <div className="grid flex-1 gap-8 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="flex min-w-0 flex-col gap-8">
+            <section
+              aria-labelledby="form-data-heading"
+              className="rounded-xl border border-border bg-card p-5 shadow-none"
             >
-              Documents
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Current revisions are emphasized. Applicants may upload while the
-              case is in Draft or Pending clarification.
-            </p>
-            <div className="mt-4 min-h-[12rem] flex-1 border-t border-border pt-4">
-              <ApplicationDocumentsPanel
-                applicationId={app.id}
-                applicationStatus={app.status}
-                applicantId={app.applicant_id}
-                sessionUserId={sessionUserId}
-                mayUploadNextVersion={mayUploadDocs}
-                documents={documentsQuery.data}
-                isLoading={documentsQuery.isLoading}
-                errorMessage={
-                  documentsQuery.isError
-                    ? documentsQuery.error instanceof Error
-                      ? documentsQuery.error.message
-                      : `Failed to load documents.`
-                    : undefined
-                }
-              />
-            </div>
-          </section>
+              <h2
+                id="form-data-heading"
+                className="text-sm font-semibold text-foreground"
+              >
+                Form data
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Submitted licensing fields for this case will appear here when
+                exposed by the API. Until then, core record identifiers are shown
+                below.
+              </p>
+              <dl className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Applicant ID
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-sm text-foreground">
+                    {app.applicant_id}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Record version
+                  </dt>
+                  <dd className="mt-0.5 text-sm text-foreground">
+                    {app.version}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Reviewer
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-sm text-foreground">
+                    {app.reviewer_id ?? `—`}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Approver
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-sm text-foreground">
+                    {app.approver_id ?? `—`}
+                  </dd>
+                </div>
+              </dl>
+            </section>
 
-          <section
+            <section
+              aria-labelledby="documents-heading"
+              className="flex min-h-0 flex-col rounded-xl border border-border bg-card p-5 shadow-none"
+            >
+              <h2
+                id="documents-heading"
+                className="text-sm font-semibold text-foreground"
+              >
+                Documents
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Current revisions are emphasized. Applicants may upload while
+                the case is in Draft or Pending clarification.
+              </p>
+              <div className="mt-4 min-h-[12rem] flex-1 border-t border-border pt-4">
+                <ApplicationDocumentsPanel
+                  applicationId={app.id}
+                  applicationStatus={app.status}
+                  applicantId={app.applicant_id}
+                  sessionUserId={sessionUserId}
+                  mayUploadNextVersion={mayUploadDocs}
+                  documents={documentsQuery.data}
+                  isLoading={documentsQuery.isLoading}
+                  errorMessage={
+                    documentsQuery.isError
+                      ? documentsQuery.error instanceof Error
+                        ? documentsQuery.error.message
+                        : `Failed to load documents.`
+                      : undefined
+                  }
+                />
+              </div>
+            </section>
+          </div>
+
+          <aside
             aria-labelledby="audit-heading"
-            className="flex min-h-0 flex-col rounded-xl border border-border bg-card p-5 shadow-none"
+            className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:rounded-xl lg:border lg:border-border lg:bg-card lg:p-5 lg:shadow-none"
           >
             <h2
               id="audit-heading"
@@ -196,7 +203,7 @@ export function ApplicationDetailClient() {
                 ? `Staff compliance view from licensing audit logs for this application.`
                 : `Events visible from your permitted access.`}
             </p>
-            <div className="mt-4 min-h-[12rem] flex-1 overflow-y-auto border-t border-border pt-4">
+            <div className="mt-4 min-h-[12rem] border-t border-border pt-4 lg:border-border">
               <ApplicationTrailPanel
                 mode={staffAudit ? `compliance` : `basic`}
                 complianceEntries={complianceQuery.data}
@@ -205,7 +212,7 @@ export function ApplicationDetailClient() {
                 errorMessage={auditError}
               />
             </div>
-          </section>
+          </aside>
         </div>
       </div>
       <ApplicationActionFooter application={app} />

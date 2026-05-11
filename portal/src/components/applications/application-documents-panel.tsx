@@ -256,29 +256,37 @@ export function ApplicationDocumentsPanel({
                 </div>
 
                 <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Older versions ({historyOlder.length})
-                  </p>
                   {historyOlder.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      Nothing archived here yet — only the{' '}
+                      No superseded uploads in this group — only the{' '}
                       <span className="font-semibold text-foreground">Current</span>{' '}
-                      row exists for this bundle.
+                      row is listed above.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-border rounded-lg border border-border bg-muted/10">
-                      {historyOlder.map((d) => (
-                        <li
-                          key={d.id}
-                          className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm text-muted-foreground"
-                        >
-                          <span>{d.original_name}</span>
-                          <span className="text-xs">
-                            v{d.version} · {formatBytes(d.size_bytes)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <details className="group rounded-lg border border-border bg-muted/10">
+                      <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            className="inline-block size-0 border-y-[0.28rem] border-l-[0.45rem] border-y-transparent border-l-muted-foreground transition-transform group-open:rotate-90"
+                          />
+                          Superseded history ({historyOlder.length})
+                        </span>
+                      </summary>
+                      <ul className="divide-y divide-border border-t border-border">
+                        {historyOlder.map((d) => (
+                          <li
+                            key={d.id}
+                            className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm text-muted-foreground"
+                          >
+                            <span>{d.original_name}</span>
+                            <span className="text-xs">
+                              v{d.version} · {formatBytes(d.size_bytes)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   )}
                 </div>
               </div>
