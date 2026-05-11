@@ -17,6 +17,16 @@ export const actorHasAllTokens = (
   return required.every((c) => s.has(c));
 };
 
+/** Matches API `actorHasPermissionPair` — JWT may include `resource:action` or `action` only. */
+export const actorHasPermissionPair = (
+  tokens: string[] | undefined,
+  resource: string,
+  action: string,
+): boolean => {
+  const s = asSet(tokens);
+  return s.has(`${resource}:${action}`) || s.has(action);
+};
+
 export const NAV_PERMISSIONS = {
   newApplication: [`application:create`, `application:submit`],
   staffReviewQueue: [`application:review`, `application:start_review`],
