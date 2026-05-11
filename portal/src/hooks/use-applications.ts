@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
+  createApplication,
   fetchApplicationById,
   fetchApplicationDocuments,
   fetchApplications,
@@ -261,6 +262,30 @@ export const useUploadApplicationDocumentMutation = (applicationId: string) => {
           : err instanceof Error
             ? err.message
             : `Upload failed.`;
+      toast.error(message);
+    },
+  });
+};
+
+export const useCreateApplicationMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createApplication,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: applicationKeys.list() });
+    },
+    onError: (err: unknown) => {
+      const message =
+        isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === `object` &&
+        err.response.data !== null &&
+        `message` in err.response.data &&
+        typeof (err.response.data as { message: unknown }).message === `string`
+          ? (err.response.data as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : `Could not create application.`;
       toast.error(message);
     },
   });

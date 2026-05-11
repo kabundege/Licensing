@@ -18,6 +18,7 @@ import {
   applicationStatusLabel,
   userMayReadComplianceAuditApi,
 } from "@/lib/application-domain";
+import { userMayDownloadCaseDocuments } from "@/lib/permissions";
 import { useSession } from "next-auth/react";
 
 export function ApplicationDetailClient() {
@@ -39,6 +40,14 @@ export function ApplicationDetailClient() {
     sessionUserId === app.applicant_id &&
     (app.status === ApplicationStatus.DRAFT ||
       app.status === ApplicationStatus.PENDING_CLARIFICATION);
+
+  const mayDownloadDocs =
+    app !== undefined &&
+    userMayDownloadCaseDocuments({
+      sessionUserId,
+      applicantId: app.applicant_id,
+      roles: session?.user?.roles,
+    });
 
   if (detailQuery.isLoading || !id) {
     return (
@@ -200,6 +209,7 @@ export function ApplicationDetailClient() {
                   applicantId={app.applicant_id}
                   sessionUserId={sessionUserId}
                   mayUploadNextVersion={mayUploadDocs}
+                  mayDownloadDocuments={mayDownloadDocs}
                   documents={documentsQuery.data}
                   isLoading={documentsQuery.isLoading}
                   errorMessage={

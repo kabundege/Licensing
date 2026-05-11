@@ -52,7 +52,7 @@ export default async function DashboardHomePage() {
             </li>
           </PermissionGuard>
           <PermissionGuard
-            anyOf={NAV_PERMISSIONS.adminDashboard}
+            anyOf={[...NAV_PERMISSIONS.adminPortalAccess]}
             fallback={null}
           >
             <li>

@@ -1,26 +1,25 @@
+import { ApplicationsPageClient } from "@/components/applications/applications-page-client";
 import { PermissionGuardClient } from "@/components/auth/permission-guard-client";
+import { ApplicationStatus } from "@/lib/application-domain";
 import { NAV_PERMISSIONS } from "@/lib/permissions";
 
-export default function StaffReviewPage() {
+export default function StaffReviewQueuePage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">
-        Staff review queue
-      </h1>
-      <PermissionGuardClient
-        anyOf={NAV_PERMISSIONS.staffReviewQueue}
-        fallback={
+    <PermissionGuardClient
+      anyOf={[...NAV_PERMISSIONS.staffReviewQueue]}
+      fallback={
+        <div className="mx-auto max-w-3xl px-4 py-8">
           <p className="text-muted-foreground">
             This section requires staff review permissions.
           </p>
-        }
-      >
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <p className="text-card-foreground">
-            Queue and workflow tools will connect to the licensing API here.
-          </p>
         </div>
-      </PermissionGuardClient>
-    </div>
+      }
+    >
+      <ApplicationsPageClient
+        initialStatusFilter={ApplicationStatus.SUBMITTED}
+        pageTitle="Staff review queue"
+        pageDescription="Submitted applications awaiting pickup — claim a case to move it into review."
+      />
+    </PermissionGuardClient>
   );
 }

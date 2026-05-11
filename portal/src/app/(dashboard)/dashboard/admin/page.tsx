@@ -1,26 +1,18 @@
+import { AdminDashboardClient } from "@/components/admin/admin-dashboard-client";
 import { PermissionGuard } from "@/components/auth/permission-guard";
 import { NAV_PERMISSIONS } from "@/lib/permissions";
 
 export default function AdminDashboardPage() {
   return (
     <PermissionGuard
-      anyOf={NAV_PERMISSIONS.adminDashboard}
+      anyOf={[...NAV_PERMISSIONS.adminPortalAccess]}
       fallback={
-        <p className="text-muted-foreground">You do not have access to admin tools.</p>
+        <div className="mx-auto max-w-3xl px-4 py-8">
+          <p className="text-muted-foreground">You do not have access to administration tools.</p>
+        </div>
       }
     >
-      <div className="mx-auto max-w-3xl space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">
-          Admin dashboard
-        </h1>
-        <p className="text-muted-foreground">
-          User management and system configuration will be integrated with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-sm text-foreground">
-            manage_users
-          </code>
-          .
-        </p>
-      </div>
+      <AdminDashboardClient />
     </PermissionGuard>
   );
 }

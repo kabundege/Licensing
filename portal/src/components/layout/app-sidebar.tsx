@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
     href: routes.admin.url,
     label: routes.admin.label,
     icon: Shield,
-    match: NAV_PERMISSIONS.adminDashboard,
+    match: NAV_PERMISSIONS.adminPortalAccess,
   },
 ];
 
