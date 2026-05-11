@@ -1,6 +1,8 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import {
   fetchApplicationById,
@@ -9,9 +11,17 @@ import {
   fetchComplianceAuditLogs,
   patchApplicationStatus,
 } from "@/lib/api/applications-api";
-import type { TransitionBody } from "@/lib/api/applications-types";
+import type {
+  ApplicationDetailDto,
+  ApplicationDto,
+  TransitionBody,
+} from "@/lib/api/applications-types";
+import { uploadApplicationDocument } from "@/lib/api/documents-api";
+import {
+  ApplicationStatus,
+  userMayReadComplianceAuditApi,
+} from "@/lib/application-domain";
 import { applicationKeys } from "@/lib/query-keys";
-import { userMayReadComplianceAuditApi } from "@/lib/application-domain";
 import { useSession } from "next-auth/react";
 
 export const useApplicationsList = () => {
@@ -54,13 +64,198 @@ export const useComplianceAuditTrail = (id: string | undefined) => {
   });
 };
 
+export type TransitionVariables = {
+  applicationId: string;
+  body: TransitionBody;
+};
+
+const mergeOptimisticTransition = ({
+  prev,
+  body,
+  sessionUserId,
+}: {
+  prev: ApplicationDto;
+  body: TransitionBody;
+  sessionUserId: string | undefined;
+}): ApplicationDto => {
+  const { targetStatus, expectedVersion } = body;
+  if (prev.version !== expectedVersion) {
+    return prev;
+  }
+
+  let { reviewer_id, approver_id } = prev;
+
+  if (
+    prev.status === ApplicationStatus.SUBMITTED &&
+    targetStatus === ApplicationStatus.UNDER_REVIEW &&
+    sessionUserId
+  ) {
+    reviewer_id = sessionUserId;
+  }
+
+  if (
+    (targetStatus === ApplicationStatus.APPROVED ||
+      targetStatus === ApplicationStatus.REJECTED) &&
+    sessionUserId
+  ) {
+    approver_id = sessionUserId;
+  }
+
+  return {
+    ...prev,
+    status: targetStatus,
+    version: expectedVersion + 1,
+    reviewer_id,
+    approver_id,
+  };
+};
+
+export const useApplicationTransitionMutation = () => {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const sessionUserId =
+    typeof session?.user?.id === `string` ? session.user.id : undefined;
+
+  return useMutation({
+    mutationFn: ({ applicationId, body }: TransitionVariables) =>
+      patchApplicationStatus(applicationId, body),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: applicationKeys.list() });
+      await queryClient.cancelQueries({
+        queryKey: applicationKeys.detail(variables.applicationId),
+      });
+
+      const previousList = queryClient.getQueryData<ApplicationDto[]>(
+        applicationKeys.list(),
+      );
+      const previousDetail = queryClient.getQueryData<ApplicationDetailDto>(
+        applicationKeys.detail(variables.applicationId),
+      );
+
+      queryClient.setQueryData<ApplicationDto[] | undefined>(
+        applicationKeys.list(),
+        (list) =>
+          list?.map((row) =>
+            row.id === variables.applicationId
+              ? mergeOptimisticTransition({
+                  prev: row,
+                  body: variables.body,
+                  sessionUserId,
+                })
+              : row,
+          ),
+      );
+
+      queryClient.setQueryData<ApplicationDetailDto | undefined>(
+        applicationKeys.detail(variables.applicationId),
+        (detail) =>
+          detail
+            ? ({
+                ...mergeOptimisticTransition({
+                  prev: detail,
+                  body: variables.body,
+                  sessionUserId,
+                }),
+                auditLogs: detail.auditLogs,
+              } satisfies ApplicationDetailDto)
+            : detail,
+      );
+
+      return { previousList, previousDetail };
+    },
+    onError: (err: unknown, variables, context) => {
+      if (context?.previousList) {
+        queryClient.setQueryData(applicationKeys.list(), context.previousList);
+      }
+      if (
+        variables?.applicationId &&
+        context?.previousDetail !== undefined
+      ) {
+        queryClient.setQueryData(
+          applicationKeys.detail(variables.applicationId),
+          context.previousDetail,
+        );
+      }
+      const message =
+        isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === `object` &&
+        err.response.data !== null &&
+        `message` in err.response.data &&
+        typeof (err.response.data as { message: unknown }).message === `string`
+          ? (err.response.data as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : `Status could not be updated.`;
+      toast.error(message);
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: applicationKeys.list() });
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.detail(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.complianceAudit(variables.applicationId),
+      });
+    },
+  });
+};
+
 export const useApplicationStatusMutation = (applicationId: string) => {
+  const mutation = useApplicationTransitionMutation();
+  return {
+    ...mutation,
+    mutate: (body: TransitionBody) =>
+      mutation.mutate({ applicationId, body }),
+    mutateAsync: (body: TransitionBody) =>
+      mutation.mutateAsync({ applicationId, body }),
+  };
+};
+
+export const useUploadApplicationDocumentMutation = (applicationId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: TransitionBody) =>
-      patchApplicationStatus(applicationId, body),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: applicationKeys.all });
+    mutationFn: ({
+      file,
+      groupKey,
+    }: {
+      file: File;
+      groupKey?: string | null;
+    }) =>
+      uploadApplicationDocument({
+        applicationId,
+        file,
+        groupKey,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: applicationKeys.documents(applicationId, true),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: applicationKeys.documents(applicationId, false),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: applicationKeys.complianceAudit(applicationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: applicationKeys.detail(applicationId),
+        }),
+      ]);
+    },
+    onError: (err: unknown) => {
+      const message =
+        isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === `object` &&
+        err.response.data !== null &&
+        `message` in err.response.data &&
+        typeof (err.response.data as { message: unknown }).message === `string`
+          ? (err.response.data as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : `Upload failed.`;
+      toast.error(message);
     },
   });
 };

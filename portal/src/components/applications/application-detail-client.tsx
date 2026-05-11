@@ -7,7 +7,6 @@ import { ApplicationActionFooter } from "@/components/applications/application-a
 import { ApplicationDocumentsPanel } from "@/components/applications/application-documents-panel";
 import { ApplicationStatusBadge } from "@/components/applications/application-status-badge";
 import { ApplicationTrailPanel } from "@/components/applications/application-trail-panel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import routes from "@/constants/routeNames";
 import {
   useApplicationDetail,
@@ -15,6 +14,7 @@ import {
   useComplianceAuditTrail,
 } from "@/hooks/use-applications";
 import {
+  ApplicationStatus,
   applicationStatusLabel,
   userMayReadComplianceAuditApi,
 } from "@/lib/application-domain";
@@ -24,6 +24,7 @@ export function ApplicationDetailClient() {
   const params = useParams();
   const id = typeof params.id === `string` ? params.id : undefined;
   const { data: session } = useSession();
+  const sessionUserId = session?.user?.id;
   const staffAudit = userMayReadComplianceAuditApi(session?.user?.roles);
 
   const detailQuery = useApplicationDetail(id);
@@ -32,9 +33,16 @@ export function ApplicationDetailClient() {
 
   const app = detailQuery.data;
 
+  const mayUploadDocs =
+    Boolean(sessionUserId) &&
+    app !== undefined &&
+    sessionUserId === app.applicant_id &&
+    (app.status === ApplicationStatus.DRAFT ||
+      app.status === ApplicationStatus.PENDING_CLARIFICATION);
+
   if (detailQuery.isLoading || !id) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8">
         <p className="text-sm text-muted-foreground">Loading application…</p>
       </div>
     );
@@ -42,7 +50,7 @@ export function ApplicationDetailClient() {
 
   if (detailQuery.isError || !app) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8">
         <p className="text-sm text-destructive">
           {detailQuery.error instanceof Error
             ? detailQuery.error.message
@@ -68,9 +76,9 @@ export function ApplicationDetailClient() {
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-8">
+        <header className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <Link
               href={routes.applications.url}
               className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -78,7 +86,7 @@ export function ApplicationDetailClient() {
               ← Applications
             </Link>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              Case workspace
+              Application case
             </h1>
             <p className="mt-1 font-mono text-xs text-muted-foreground">
               id: {app.id}
@@ -90,79 +98,115 @@ export function ApplicationDetailClient() {
               </span>
             </div>
           </div>
-        </div>
+        </header>
 
-        <Tabs defaultValue="information" className="w-full flex-1">
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="information">Information</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="audit">Audit trail</TabsTrigger>
-          </TabsList>
+        {/* 1 · Metadata summary */}
+        <section
+          aria-labelledby="metadata-summary-heading"
+          className="rounded-xl border border-border bg-card p-5 shadow-none"
+        >
+          <h2
+            id="metadata-summary-heading"
+            className="text-sm font-semibold text-foreground"
+          >
+            Metadata summary
+          </h2>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Applicant ID
+              </dt>
+              <dd className="mt-0.5 font-mono text-sm text-foreground">
+                {app.applicant_id}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Record version
+              </dt>
+              <dd className="mt-0.5 text-sm text-foreground">{app.version}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Reviewer
+              </dt>
+              <dd className="mt-0.5 font-mono text-sm text-foreground">
+                {app.reviewer_id ?? `—`}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Approver
+              </dt>
+              <dd className="mt-0.5 font-mono text-sm text-foreground">
+                {app.approver_id ?? `—`}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-          <TabsContent value="information" className="rounded-xl border border-border bg-card p-4">
-            <p className="mb-4 text-sm text-muted-foreground">
-              Application metadata from the licensing API. Structured intake
-              fields will appear here once exposed on{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">Application</code>.
+        {/* 2 & 3 · Documents + Compliance audit */}
+        <div className="grid flex-1 gap-8 lg:grid-cols-2 lg:gap-10">
+          <section
+            aria-labelledby="documents-heading"
+            className="flex min-h-0 flex-col rounded-xl border border-border bg-card p-5 shadow-none"
+          >
+            <h2
+              id="documents-heading"
+              className="text-sm font-semibold text-foreground"
+            >
+              Documents
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Current revisions are emphasized. Applicants may upload while the
+              case is in Draft or Pending clarification.
             </p>
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Applicant ID
-                </dt>
-                <dd className="mt-0.5 font-mono text-sm text-foreground">
-                  {app.applicant_id}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Version
-                </dt>
-                <dd className="mt-0.5 text-sm text-foreground">{app.version}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Reviewer
-                </dt>
-                <dd className="mt-0.5 font-mono text-sm text-foreground">
-                  {app.reviewer_id ?? `—`}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Approver
-                </dt>
-                <dd className="mt-0.5 font-mono text-sm text-foreground">
-                  {app.approver_id ?? `—`}
-                </dd>
-              </div>
-            </dl>
-          </TabsContent>
+            <div className="mt-4 min-h-[12rem] flex-1 border-t border-border pt-4">
+              <ApplicationDocumentsPanel
+                applicationId={app.id}
+                applicationStatus={app.status}
+                applicantId={app.applicant_id}
+                sessionUserId={sessionUserId}
+                mayUploadNextVersion={mayUploadDocs}
+                documents={documentsQuery.data}
+                isLoading={documentsQuery.isLoading}
+                errorMessage={
+                  documentsQuery.isError
+                    ? documentsQuery.error instanceof Error
+                      ? documentsQuery.error.message
+                      : `Failed to load documents.`
+                    : undefined
+                }
+              />
+            </div>
+          </section>
 
-          <TabsContent value="documents" className="rounded-xl border border-border bg-card p-4">
-            <ApplicationDocumentsPanel
-              documents={documentsQuery.data}
-              isLoading={documentsQuery.isLoading}
-              errorMessage={
-                documentsQuery.isError
-                  ? documentsQuery.error instanceof Error
-                    ? documentsQuery.error.message
-                    : `Failed to load documents.`
-                  : undefined
-              }
-            />
-          </TabsContent>
-
-          <TabsContent value="audit" className="rounded-xl border border-border bg-card p-4">
-            <ApplicationTrailPanel
-              mode={staffAudit ? `compliance` : `basic`}
-              complianceEntries={complianceQuery.data}
-              basicLogs={app.auditLogs}
-              isLoading={Boolean(auditLoading)}
-              errorMessage={auditError}
-            />
-          </TabsContent>
-        </Tabs>
+          <section
+            aria-labelledby="audit-heading"
+            className="flex min-h-0 flex-col rounded-xl border border-border bg-card p-5 shadow-none"
+          >
+            <h2
+              id="audit-heading"
+              className="text-sm font-semibold text-foreground"
+            >
+              Audit timeline
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {staffAudit
+                ? `Staff compliance view from licensing audit logs for this application.`
+                : `Events visible from your permitted access.`}
+            </p>
+            <div className="mt-4 min-h-[12rem] flex-1 overflow-y-auto border-t border-border pt-4">
+              <ApplicationTrailPanel
+                mode={staffAudit ? `compliance` : `basic`}
+                complianceEntries={complianceQuery.data}
+                basicLogs={app.auditLogs}
+                isLoading={Boolean(auditLoading)}
+                errorMessage={auditError}
+              />
+            </div>
+          </section>
+        </div>
       </div>
       <ApplicationActionFooter application={app} />
     </div>

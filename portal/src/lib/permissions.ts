@@ -37,3 +37,10 @@ export const MIDDLEWARE_RULES = {
   staffArea: NAV_PERMISSIONS.staffReviewQueue,
   adminArea: NAV_PERMISSIONS.adminDashboard,
 } as const;
+
+/** Staff may take ownership of SUBMITTED cases (API uses `application:start_review`; JWT may expose `application:review`). */
+export const userMayClaimSubmittedApplication = (
+  tokens: string[] | undefined,
+): boolean =>
+  actorHasPermissionPair(tokens, `application`, `review`) ||
+  actorHasPermissionPair(tokens, `application`, `start_review`);

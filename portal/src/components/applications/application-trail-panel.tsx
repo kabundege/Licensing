@@ -2,6 +2,7 @@
 
 import { humanReadableAuditDescription } from "@/lib/audit-display";
 import type { AuditLogDto, ComplianceAuditEntryDto } from "@/lib/api/applications-types";
+import { cn } from "@/lib/utils";
 
 const formatTs = (iso: string): string => {
   try {
@@ -13,6 +14,14 @@ const formatTs = (iso: string): string => {
     return iso;
   }
 };
+
+const timelineItemClass = cn(
+  `relative pl-8 before:absolute before:left-[7px] before:top-9 before:h-[calc(100%-0.75rem)] before:w-px last:before:hidden before:bg-border`,
+);
+
+const timelineDotClass = cn(
+  `absolute left-0 top-1.5 size-4 rounded-full border-2 border-primary/50 bg-primary/20 shadow-sm ring-2 ring-background`,
+);
 
 export function ApplicationTrailPanel({
   mode,
@@ -49,19 +58,27 @@ export function ApplicationTrailPanel({
       );
     }
     return (
-      <ol className="relative border-l border-border">
-        {chronological.map((entry) => (
-          <li key={entry.id} className="mb-6 ml-4">
-            <div className="absolute -left-1.5 mt-1.5 size-3 rounded-full border border-border bg-background" />
-            <p className="text-xs text-muted-foreground">
+      <ol className="relative mt-1 list-none">
+        {chronological.map((entry, index) => (
+          <li
+            key={entry.id}
+            className={timelineItemClass}
+          >
+            <div className={timelineDotClass} aria-hidden />
+            <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
               {formatTs(entry.timestamp)}
             </p>
-            <p className="text-sm font-medium text-foreground">
+            <p className="mt-1 text-sm font-semibold text-foreground">
               {entry.action_label}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {entry.actor.name} · {entry.actor.role}
             </p>
+            {index === chronological.length - 1 ? (
+              <span className="mt-2 inline-block text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                Latest
+              </span>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -80,17 +97,24 @@ export function ApplicationTrailPanel({
   }
 
   return (
-    <ol className="relative border-l border-border">
-      {chronological.map((entry) => (
-        <li key={entry.id} className="mb-6 ml-4">
-          <div className="absolute -left-1.5 mt-1.5 size-3 rounded-full border border-border bg-background" />
-          <p className="text-xs text-muted-foreground">
+    <ol className="relative mt-1 list-none">
+      {chronological.map((entry, index) => (
+        <li key={entry.id} className={timelineItemClass}>
+          <div className={timelineDotClass} aria-hidden />
+          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
             {formatTs(entry.timestamp)}
           </p>
-          <p className="text-sm font-medium text-foreground">
+          <p className="mt-1 text-sm font-semibold text-foreground">
             {humanReadableAuditDescription(entry)}
           </p>
-          <p className="text-xs text-muted-foreground">Actor {entry.actor_id}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Actor {entry.actor_id}
+          </p>
+          {index === chronological.length - 1 ? (
+            <span className="mt-2 inline-block text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+              Latest
+            </span>
+          ) : null}
         </li>
       ))}
     </ol>
