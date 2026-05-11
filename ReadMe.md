@@ -74,3 +74,5 @@ To satisfy the requirement for distinct permission boundaries, the system uses R
   - **The Benefit**: This architecture prevents the application server from being overwhelmed by large file streams, offloading I/O heavy tasks to dedicated cloud storage.
 
   - **Data Integrity**: Upon a successful upload, the client would send the resulting S3 Object Key back to the API to be stored in the documents table, maintaining a reliable link between the application metadata and the physical file.
+
+## 6. For a deeper dive into non-negotiable requirements, see [Non-Negotiables](./Non-Negotiables.md).
