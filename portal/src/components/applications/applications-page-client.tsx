@@ -44,17 +44,32 @@ const STATUS_FILTER_OPTIONS: Array<ApplicationStatus | `ALL`> = [
   ApplicationStatus.REJECTED,
 ];
 
-export function ApplicationsPageClient() {
+type ApplicationsPageClientProps = {
+  initialStatusFilter?: ApplicationStatus | `ALL`;
+  pageTitle?: string;
+  pageDescription?: string;
+};
+
+export function ApplicationsPageClient(props: ApplicationsPageClientProps = {}) {
+  const {
+    initialStatusFilter = `ALL`,
+    pageTitle = `Applications`,
+    pageDescription,
+  } = props;
   const { data: session } = useSession();
   const [searchQuery, setSearchQuery] = useState(``);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | `ALL`>(
-    `ALL`,
+    initialStatusFilter,
   );
   const { data, isLoading, isError, error } = useApplicationsList();
   const transition = useApplicationTransitionMutation();
   const staffQueue = userSeesGlobalApplicationQueue(session?.user?.roles);
   const tokens = session?.user?.permissions;
   const mayClaim = userMayClaimSubmittedApplication(tokens);
+
+  const defaultDescription = staffQueue
+    ? `Review queue — all applications in the system.`
+    : `Your submitted applications. The list is scoped to your account by the API.`;
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
 
@@ -80,12 +95,10 @@ export function ApplicationsPageClient() {
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          Applications
+          {pageTitle}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {staffQueue
-            ? `Review queue — all applications in the system.`
-            : `Your submitted applications. The list is scoped to your account by the API.`}
+          {pageDescription ?? defaultDescription}
         </p>
       </div>
 
