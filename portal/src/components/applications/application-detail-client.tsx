@@ -100,8 +100,34 @@ export function ApplicationDetailClient() {
           </div>
         </header>
 
-        <div className="grid flex-1 gap-8 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <div className="flex min-w-0 flex-col gap-8">
+        <div className="grid flex-1 gap-8 lg:grid-cols-[minmax(15rem,17.5rem)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)]">
+          <aside
+            aria-labelledby="audit-heading"
+            className="order-2 lg:order-1 lg:sticky lg:top-4 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:rounded-xl lg:border lg:border-border lg:bg-card lg:p-5 lg:shadow-none"
+          >
+            <h2
+              id="audit-heading"
+              className="text-sm font-semibold text-foreground"
+            >
+              Audit timeline
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {staffAudit
+                ? `Staff compliance view from licensing audit logs for this application.`
+                : `Events visible from your permitted access.`}
+            </p>
+            <div className="mt-4 min-h-[12rem] border-t border-border pt-4 lg:border-border">
+              <ApplicationTrailPanel
+                mode={staffAudit ? `compliance` : `basic`}
+                complianceEntries={complianceQuery.data}
+                basicLogs={app.auditLogs}
+                isLoading={Boolean(auditLoading)}
+                errorMessage={auditError}
+              />
+            </div>
+          </aside>
+
+          <div className="order-1 flex min-w-0 flex-col gap-8 lg:order-2">
             <section
               aria-labelledby="form-data-heading"
               className="rounded-xl border border-border bg-card p-5 shadow-none"
@@ -187,32 +213,6 @@ export function ApplicationDetailClient() {
               </div>
             </section>
           </div>
-
-          <aside
-            aria-labelledby="audit-heading"
-            className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-4.5rem)] lg:overflow-y-auto lg:rounded-xl lg:border lg:border-border lg:bg-card lg:p-5 lg:shadow-none"
-          >
-            <h2
-              id="audit-heading"
-              className="text-sm font-semibold text-foreground"
-            >
-              Audit timeline
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {staffAudit
-                ? `Staff compliance view from licensing audit logs for this application.`
-                : `Events visible from your permitted access.`}
-            </p>
-            <div className="mt-4 min-h-[12rem] border-t border-border pt-4 lg:border-border">
-              <ApplicationTrailPanel
-                mode={staffAudit ? `compliance` : `basic`}
-                complianceEntries={complianceQuery.data}
-                basicLogs={app.auditLogs}
-                isLoading={Boolean(auditLoading)}
-                errorMessage={auditError}
-              />
-            </div>
-          </aside>
         </div>
       </div>
       <ApplicationActionFooter application={app} />

@@ -1,3 +1,5 @@
+import { userSeesGlobalApplicationQueue } from "@/lib/application-domain";
+
 const asSet = (tokens: string[] | undefined): Set<string> =>
   new Set(tokens ?? []);
 
@@ -44,3 +46,19 @@ export const userMayClaimSubmittedApplication = (
 ): boolean =>
   actorHasPermissionPair(tokens, `application`, `review`) ||
   actorHasPermissionPair(tokens, `application`, `start_review`);
+
+/** Row-level quick action: open case detail (applicant on file or staff queue role). */
+export const userMayViewApplicationCase = ({
+  sessionUserId,
+  applicantId,
+  roles,
+}: {
+  sessionUserId: string | undefined;
+  applicantId: string;
+  roles: string[] | undefined;
+}): boolean => {
+  if (typeof sessionUserId === `string` && sessionUserId === applicantId) {
+    return true;
+  }
+  return userSeesGlobalApplicationQueue(roles);
+};

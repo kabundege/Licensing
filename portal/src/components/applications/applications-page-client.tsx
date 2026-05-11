@@ -8,6 +8,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import routes from "@/constants/routeNames";
 import {
   useApplicationTransitionMutation,
@@ -18,7 +26,10 @@ import {
   applicationStatusLabel,
   userSeesGlobalApplicationQueue,
 } from "@/lib/application-domain";
-import { userMayClaimSubmittedApplication } from "@/lib/permissions";
+import {
+  userMayClaimSubmittedApplication,
+  userMayViewApplicationCase,
+} from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 
@@ -131,93 +142,103 @@ export function ApplicationsPageClient() {
             No applications match your filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40 text-left">
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Reference
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  {staffQueue ? (
-                    <th className="px-4 py-3 font-medium text-muted-foreground">
-                      Applicant
-                    </th>
-                  ) : null}
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Version
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Quick actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row) => {
-                  const showClaim =
-                    staffQueue &&
-                    mayClaim &&
-                    row.status === ApplicationStatus.SUBMITTED;
-                  return (
-                    <tr
-                      key={row.id}
-                      className="border-b border-border transition-colors hover:bg-muted/25"
+          <Table className="min-w-[760px]">
+            <TableHeader>
+              <TableRow className="border-b border-border bg-muted/40 hover:bg-muted/40">
+                <TableHead className="font-medium text-muted-foreground">
+                  Reference
+                </TableHead>
+                <TableHead className="font-medium text-muted-foreground">
+                  Status
+                </TableHead>
+                {staffQueue ? (
+                  <TableHead className="font-medium text-muted-foreground">
+                    Applicant
+                  </TableHead>
+                ) : null}
+                <TableHead className="font-medium text-muted-foreground">
+                  Version
+                </TableHead>
+                <TableHead className="text-right font-medium text-muted-foreground">
+                  Quick actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRows.map((row) => {
+                const showClaim =
+                  staffQueue &&
+                  mayClaim &&
+                  row.status === ApplicationStatus.SUBMITTED;
+                const showView = userMayViewApplicationCase({
+                  sessionUserId: session?.user?.id,
+                  applicantId: row.applicant_id,
+                  roles: session?.user?.roles,
+                });
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell
+                      className="font-mono text-xs text-foreground"
+                      title={row.id}
                     >
-                      <td
-                        className="px-4 py-3 font-mono text-xs text-foreground"
-                        title={row.id}
-                      >
-                        {row.id.slice(0, 8)}…
-                      </td>
-                      <td className="px-4 py-3">
-                        <ApplicationStatusBadge status={row.status} />
-                      </td>
-                      {staffQueue ? (
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {row.applicant_id.slice(0, 8)}…
-                        </td>
-                      ) : null}
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {row.version}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {row.id.slice(0, 8)}…
+                    </TableCell>
+                    <TableCell>
+                      <ApplicationStatusBadge status={row.status} />
+                    </TableCell>
+                    {staffQueue ? (
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {row.applicant_id.slice(0, 8)}…
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="text-muted-foreground">
+                      {row.version}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {showView ? (
                           <Link
                             href={`${routes.applications.url}/${row.id}`}
-                            className={cn(buttonVariants({ variant: `outline`, size: `xs` }))}
+                            className={cn(
+                              buttonVariants({
+                                variant: `outline`,
+                                size: `xs`,
+                              }),
+                            )}
                           >
                             View
                           </Link>
-                          {showClaim ? (
-                            <Button
-                              type="button"
-                              size="xs"
-                              variant="secondary"
-                              disabled={transition.isPending}
-                              onClick={() =>
-                                transition.mutate({
-                                  applicationId: row.id,
-                                  body: {
-                                    targetStatus:
-                                      ApplicationStatus.UNDER_REVIEW,
-                                    expectedVersion: row.version,
-                                  },
-                                })
-                              }
-                            >
-                              Claim
-                            </Button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        ) : null}
+                        {showClaim ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="secondary"
+                            disabled={transition.isPending}
+                            onClick={() =>
+                              transition.mutate({
+                                applicationId: row.id,
+                                body: {
+                                  targetStatus:
+                                    ApplicationStatus.UNDER_REVIEW,
+                                  expectedVersion: row.version,
+                                },
+                              })
+                            }
+                          >
+                            Claim
+                          </Button>
+                        ) : null}
+                        {!showView && !showClaim ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
       </Card>
     </div>

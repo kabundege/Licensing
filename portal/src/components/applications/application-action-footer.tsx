@@ -19,7 +19,8 @@ import {
 } from "@/lib/application-transitions";
 import { actorHasPermissionPair } from "@/lib/permissions";
 
-const CONFLICT_OF_INTEREST_TOOLTIP = `Conflict of interest: you were the assigned reviewer on this case. Final approval must be issued by a separate approver.`;
+const CONFLICT_OF_INTEREST_TOOLTIP =
+  `Regulatory segregation of duties: you were the assigned reviewer on this case. Approval must be performed by a different officer who did not conduct the substantive review.`;
 
 export function ApplicationActionFooter({
   application,
@@ -88,10 +89,11 @@ export function ApplicationActionFooter({
           >
             <p className="font-semibold">Conflict of interest guard</p>
             <p className="mt-1 text-amber-950/90 dark:text-amber-100">
-              You match the assigned reviewer (
-              <span className="font-mono">{application.reviewer_id}</span>).
-              The Approve action is disabled — final sign-off must come from
-              someone who was not the reviewing officer on this file.
+              Your account matches the assigned reviewer (
+              <span className="font-mono">{application.reviewer_id}</span>
+              ). Approve is disabled under regulatory segregation-of-duties rules —
+              final sign-off must come from an officer who did not conduct the substantive
+              review on this file.
             </p>
           </div>
         ) : null}

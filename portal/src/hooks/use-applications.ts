@@ -197,6 +197,12 @@ export const useApplicationTransitionMutation = () => {
       void queryClient.invalidateQueries({
         queryKey: applicationKeys.complianceAudit(variables.applicationId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.documents(variables.applicationId, true),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.documents(variables.applicationId, false),
+      });
     },
   });
 };
